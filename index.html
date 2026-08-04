@@ -308,17 +308,21 @@
   /* ---------- render ---------- */
   function upload(loc, buf, arr, size){ gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0); }
 
-  let t0=null;
+  let t0=null, rot=0, lastT=0;
   function frame(ts){
     if(t0===null) t0=ts;
     const t=(ts-t0)/1000;
+    const dt=Math.min(0.05, Math.max(0, t-lastT)); lastT=t;
     analyze(t);
     updateHUD();
 
-    // camera slowly orbits the contained sculpture at the origin
-    const ang = reduce ? 0.6 : t*0.12;
+    // camera orbits the contained sculpture — slow when quiet, faster with sound
+    const spd = (reduce ? 0.05 : 0.11) + HUD.level*0.85;
+    rot += dt*spd;
+    const ang = reduce ? 0.6 : rot;
     const bob = reduce ? 0 : Math.sin(t*0.16)*0.14;
     const camR = 4.3 * fitZoom;
+    const sizeScale = fitZoom * 1.15;   // keep dots readable when zoomed out on phones
     // on phones sit more level and aim slightly low, so the form rides higher on screen (clear of the panels)
     const camY = (portrait ? 0.5 : 1.15) + bob*(portrait ? 0.5 : 1);
     const cY   = portrait ? -0.32 : 0.0;
@@ -359,7 +363,7 @@
         const fade=1-s; const grow=1.0+0.4*s; const b=0.4+0.6*p.mag;   // swell 40% while fading out
         P[i*3]=p.x; P[i*3+1]=p.y; P[i*3+2]=p.z;
         C[i*3]=p.col[0]*b; C[i*3+1]=p.col[1]*b; C[i*3+2]=p.col[2]*b;
-        Sz[i]=(0.02+p.mag*0.075)*grow;
+        Sz[i]=(0.02+p.mag*0.075)*grow*sizeScale;
         Al[i]=(0.28+0.72*p.mag)*fade;
       }
       gl.uniform1i(U.mode, 0);
