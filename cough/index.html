@@ -53,6 +53,15 @@
   .topscrim { position: absolute; left: 0; right: 0; top: 0; height: 150px; z-index: 2; pointer-events: none;
     background: linear-gradient(to bottom, #acf5f4 42%, rgba(172,245,244,0)); }
 
+  .taglayer { position: absolute; top: 30px; left: 30px; width: calc(100% - 60px); height: calc(100% - 60px);
+    z-index: 2; pointer-events: none; }
+  .tag { position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
+    display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 8px; border-radius: 999px;
+    background: rgba(17,17,17,0.62); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    color: #fff; font-weight: 500; font-size: 11px; line-height: 1; letter-spacing: 0.2px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18); will-change: left, top, opacity; }
+  .tag::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #fff; opacity: 0.85; flex: none; }
+
   .titlelockup { position: absolute; left: 27px; top: 27px; width: 182px; z-index: 4; display: flex; flex-direction: column; gap: 8px; }
   .title { font-weight: 300; font-size: 30px; line-height: 32px; color: #111; letter-spacing: -0.5px; }
   .ai { width: 28px; height: 28px; border-radius: 50%; background: #111; color: #fff;
@@ -112,6 +121,7 @@
         <div class="card top" id="card">
           <canvas id="viz"></canvas>
           <div class="topscrim"></div>
+          <div class="taglayer" id="taglayer"></div>
 
           <div class="titlelockup">
             <div class="title">Cough</div>
@@ -261,6 +271,37 @@
   let analyser=null, freq=null, timeBuf=null, audioCtx=null, stream=null, sr=48000, binHz=23.4;
   const pts=[], mel=[]; let lastMel=-1; const HUD={ level:0 };
 
+  // ---- labels that appear on a cluster and ride the spiral, then fade in ~500ms ----
+  const taglayer = document.getElementById("taglayer");
+  const LABELS = ["calibrating", "analysing", "mapping"];
+  const TAG_TTL = 0.5; const tags = []; let labelIdx = 0, nextTagAt = 0;
+  function spawnTag(now){
+    if(!pts.length) return;
+    const p = pts[(Math.random()*pts.length)|0];        // pin to a real point on a cluster
+    const el = document.createElement("div");
+    el.className = "tag";
+    el.appendChild(document.createTextNode(LABELS[labelIdx % LABELS.length]));
+    labelIdx++;
+    taglayer.appendChild(el);
+    tags.push({ el: el, x: p.x, y: p.y + 0.12, z: p.z, born: now });
+  }
+  function updateTags(now, mvp){
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    for(let i=tags.length-1;i>=0;i--){
+      const tg = tags[i]; const age = (now - tg.born) / TAG_TTL;
+      if(age >= 1){ tg.el.remove(); tags.splice(i,1); continue; }
+      const x=tg.x, y=tg.y, z=tg.z;
+      const cx = mvp[0]*x + mvp[4]*y + mvp[8]*z  + mvp[12];
+      const cy = mvp[1]*x + mvp[5]*y + mvp[9]*z  + mvp[13];
+      const cw = mvp[3]*x + mvp[7]*y + mvp[11]*z + mvp[15];
+      if(cw <= 0.0001){ tg.el.style.opacity = "0"; continue; }   // behind camera
+      const sx = ((cx/cw)*0.5 + 0.5) * W, sy = (1 - ((cy/cw)*0.5 + 0.5)) * H;
+      tg.el.style.left = sx.toFixed(1) + "px";
+      tg.el.style.top  = (sy - age*6).toFixed(1) + "px";          // slight rise as it fades
+      tg.el.style.opacity = (1 - age*age).toFixed(3);
+    }
+  }
+
   async function startAudio(){
     audioCtx = new (window.AudioContext||window.webkitAudioContext)();
     await audioCtx.resume();
@@ -358,6 +399,14 @@
       upload(A.alpha, bAlpha, Al, 1);
       gl.drawArrays(gl.POINTS, 0, n);
     }
+
+    // spawn a label now and then while listening, and keep all labels pinned to their cluster
+    if(analyser && listening && pts.length > 20 && t >= nextTagAt){
+      spawnTag(t);
+      nextTagAt = t + 1.8 + Math.random()*2.6;
+    }
+    updateTags(t, mvp);
+
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
