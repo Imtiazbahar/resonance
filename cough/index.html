@@ -55,12 +55,11 @@
 
   .taglayer { position: absolute; top: 30px; left: 30px; width: calc(100% - 60px); height: calc(100% - 60px);
     z-index: 2; pointer-events: none; }
+  /* outlined chip — matches the Figma "Label" style (0.5px black border, 4px radius, 10px Ubuntu, uppercase, ~60% opacity) */
   .tag { position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
-    display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 8px; border-radius: 999px;
-    background: rgba(17,17,17,0.62); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-    color: #fff; font-weight: 500; font-size: 11px; line-height: 1; letter-spacing: 0.2px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.18); will-change: left, top, opacity; }
-  .tag::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #fff; opacity: 0.85; flex: none; }
+    padding: 4px; border: 0.5px solid #000; border-radius: 4px; background: none;
+    color: #000; font-weight: 400; font-size: 10px; line-height: 1; text-transform: uppercase;
+    will-change: left, top, opacity; }
 
   .titlelockup { position: absolute; left: 27px; top: 27px; width: 182px; z-index: 4; display: flex; flex-direction: column; gap: 8px; }
   .title { font-weight: 300; font-size: 30px; line-height: 32px; color: #111; letter-spacing: -0.5px; }
@@ -274,7 +273,7 @@
   // ---- labels that appear on a cluster and ride the spiral, then fade in ~500ms ----
   const taglayer = document.getElementById("taglayer");
   const LABELS = ["calibrating", "analysing", "mapping"];
-  const TAG_TTL = 0.5; const tags = []; let labelIdx = 0, nextTagAt = 0;
+  const TAG_TTL = 1.2; const tags = []; let labelIdx = 0, nextTagAt = 0;
   function spawnTag(now){
     if(!pts.length) return;
     const p = pts[(Math.random()*pts.length)|0];        // pin to a real point on a cluster
@@ -298,7 +297,7 @@
       const sx = ((cx/cw)*0.5 + 0.5) * W, sy = (1 - ((cy/cw)*0.5 + 0.5)) * H;
       tg.el.style.left = sx.toFixed(1) + "px";
       tg.el.style.top  = (sy - age*6).toFixed(1) + "px";          // slight rise as it fades
-      tg.el.style.opacity = (1 - age*age).toFixed(3);
+      tg.el.style.opacity = (0.68 * (1 - age*age)).toFixed(3);     // peaks near the Figma ~60% opacity
     }
   }
 
