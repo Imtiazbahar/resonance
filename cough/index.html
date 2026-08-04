@@ -1,0 +1,387 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cough">
+<meta name="theme-color" content="#eef0f3">
+<title>Cough · Respiratory Health</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background: #eef0f3;
+    font-family: "Ubuntu", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex; justify-content: center; align-items: flex-start;
+    min-height: 100dvh; overflow-x: hidden;
+  }
+  .scaler { position: relative; }
+
+  /* ---- app surface (the "background" the card sits on) ---- */
+  .screen {
+    position: absolute; top: 0; left: 0; transform-origin: top left;
+    width: 390px; height: 736px; background: #fff;
+    border-radius: 24px; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(17,17,17,0.12);
+    display: flex; flex-direction: column;
+  }
+
+  .appheader { padding: 24px 0 20px 42px; }
+  .appheader h1 { font-weight: 500; font-size: 18px; line-height: 24px; color: #111; letter-spacing: -0.1px; }
+
+  .body {
+    border-bottom: 1px solid #e5e5e5;
+    padding: 0 16px 8px; display: flex; flex-direction: column; gap: 8px; align-items: center;
+  }
+
+  /* ---- stacked cards ---- */
+  .checkstack { position: relative; width: 366px; height: 570px; }
+  .card { border-radius: 24px; }
+  .stack1 { position: absolute; left: 12px; top: 16px; width: 342px; height: 538px; background: #d3fafa; z-index: 2; }
+  .stack2 { position: absolute; left: 24px; top: 32px; width: 342px; height: 506px; background: rgba(211,250,250,0.5); z-index: 1; }
+
+  .top {
+    position: absolute; left: 0; top: 0; width: 342px; height: 570px; z-index: 3;
+    background: #acf5f4; border: 2px solid #fff; border-radius: 24px; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(17,17,17,0.12);
+  }
+  canvas#viz { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; }
+  .topscrim { position: absolute; left: 0; right: 0; top: 0; height: 150px; z-index: 2; pointer-events: none;
+    background: linear-gradient(to bottom, #acf5f4 42%, rgba(172,245,244,0)); }
+
+  .titlelockup { position: absolute; left: 27px; top: 27px; width: 182px; z-index: 4; display: flex; flex-direction: column; gap: 8px; }
+  .title { font-weight: 300; font-size: 30px; line-height: 32px; color: #111; letter-spacing: -0.5px; }
+  .ai { width: 28px; height: 28px; border-radius: 50%; background: #111; color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 15.75px; letter-spacing: -0.37px; }
+
+  .base { position: absolute; left: -10px; top: 379px; width: 362px; height: 191px; z-index: 3;
+    background: linear-gradient(to bottom, rgba(0,143,162,0) 23.56%, #19dbe3 100%); }
+
+  .controls { position: absolute; left: 50%; transform: translateX(-50%); top: 1px; display: flex; gap: 16px; align-items: center; }
+  .ctl { width: 44px; height: 44px; border-radius: 50%; background: rgba(17,17,17,0.6);
+    -webkit-backdrop-filter: blur(11px); backdrop-filter: blur(11px);
+    display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
+  .ctl svg { width: 24px; height: 24px; display: block; }
+  .ctl:active { transform: scale(0.94); }
+
+  .start { position: relative; width: 87.48px; height: 87.48px; border-radius: 50%; background: rgba(17,17,17,0.6);
+    padding: 5.74px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .start .disk { width: 76px; height: 76px; border-radius: 50%;
+    background: linear-gradient(to bottom, #51e8e2, #00b1c1); border: 1.913px solid rgba(255,255,255,0.6);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 500; font-size: 16px; letter-spacing: 2px; transition: box-shadow 0.2s; }
+  .start:active { transform: scale(0.97); }
+  .top.listening .start .disk { box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 0 0 rgba(255,255,255,0.6); animation: pulse 1.8s ease-out infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 0 0 rgba(255,255,255,0.55); } 100% { box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 0 16px rgba(255,255,255,0); } }
+  @media (prefers-reduced-motion: reduce) { .top.listening .start .disk { animation: none; } }
+
+  .descriptor { position: absolute; left: 50%; transform: translateX(-50%); top: 105px; width: 210px;
+    text-align: center; font-weight: 400; font-size: 14px; line-height: 20px; color: #111; }
+  .descriptor.error { color: #7a1220; font-weight: 500; width: 240px; }
+
+  /* ---- tabs ---- */
+  .tabs { display: flex; flex-direction: column; align-items: center; width: 100%; }
+  .tabpill { display: flex; align-items: center; padding: 0 2px; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  .tabpill .dv { width: 1px; height: 16px; background: #e5e5e5; }
+  .tab { padding: 4px 12px; font-weight: 500; font-size: 16px; line-height: 22px; color: #111; white-space: nowrap; }
+  .tab.dim { padding: 4px 8px; font-weight: 400; font-size: 14px; line-height: 20px; color: #666; }
+  .tri { margin-top: 2px; }
+  .tri svg { display: block; width: 8px; height: 9px; }
+
+  /* ---- footer ---- */
+  .footer { margin-top: auto; display: flex; justify-content: center; padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); }
+  .explore { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border: none; background: none; cursor: pointer;
+    font-weight: 500; font-size: 18px; line-height: 24px; color: #111; letter-spacing: -0.1px; }
+  .explore svg { width: 20px; height: 20px; display: block; }
+</style>
+
+<div class="scaler" id="scaler">
+  <div class="screen" id="screen">
+    <div class="appheader"><h1>Respiratory Health</h1></div>
+
+    <div class="body">
+      <div class="checkstack">
+        <div class="card stack2"></div>
+        <div class="card stack1"></div>
+
+        <div class="card top" id="card">
+          <canvas id="viz"></canvas>
+          <div class="topscrim"></div>
+
+          <div class="titlelockup">
+            <div class="title">Cough</div>
+            <div class="ai">AI</div>
+          </div>
+
+          <div class="base">
+            <div class="controls">
+              <button class="ctl" aria-label="Bookmark">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M7.13145 20.2896C6.70436 20.5459 6.10645 20.2896 6.10645 19.7771V4.80523C6.10645 4.1219 6.61895 3.60938 7.30228 3.60938H16.6127C17.296 3.60938 17.8085 4.1219 17.8085 4.80523V19.7771C17.8085 20.2896 17.296 20.5459 16.8689 20.2896L12.0002 16.8729L7.13145 20.2896Z" stroke="#fff" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="start" id="startBtn" aria-label="Start listening"><span class="disk">Start</span></button>
+              <button class="ctl" aria-label="Information">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21Z" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.25 11.25C11.4489 11.25 11.6397 11.329 11.7803 11.4697C11.921 11.6103 12 11.8011 12 12V15.75C12 15.9489 12.079 16.1397 12.2197 16.2803C12.3603 16.421 12.5511 16.5 12.75 16.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.625 9C12.2463 9 12.75 8.49632 12.75 7.875C12.75 7.25368 12.2463 6.75 11.625 6.75C11.0037 6.75 10.5 7.25368 10.5 7.875C10.5 8.49632 11.0037 9 11.625 9Z" fill="#fff"/></svg>
+              </button>
+            </div>
+            <div class="descriptor" id="descriptor">Check your cough for 7 different conditions including COVID-19</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tabpill">
+          <span class="dv"></span>
+          <span class="tab">Skin Spot AI</span>
+          <span class="dv"></span>
+          <span class="tab dim">Skin Health AI</span>
+        </div>
+        <div class="tri"><svg viewBox="0 0 5.65646 5.55982" fill="none"><path d="M1.93855 0.543417C2.31039 -0.181138 3.34607 -0.181139 3.71791 0.543415L5.54481 4.10324C5.88633 4.7687 5.40311 5.55982 4.65513 5.55982H1.00133C0.253347 5.55982 -0.229868 4.7687 0.111647 4.10324L1.93855 0.543417Z" fill="#262626"/></svg></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <button class="explore">
+        <svg viewBox="0 0 20 20" fill="none"><path d="M16.6675 7.49959L10.0008 14.1663L3.33415 7.49959" stroke="#111" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Explore
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- responsive scale: fit the 390-wide design to the phone width ---------- */
+(function(){
+  const scaler = document.getElementById("scaler");
+  const screen = document.getElementById("screen");
+  const DW = 390, DH = 736;
+  function fit(){
+    const s = Math.min(window.innerWidth / DW, 1.25);
+    screen.style.transform = "scale(" + s + ")";
+    scaler.style.width = (DW * s) + "px";
+    scaler.style.height = (DH * s) + "px";
+    if (window.__vizResize) window.__vizResize();
+  }
+  window.addEventListener("resize", fit);
+  window.addEventListener("orientationchange", fit);
+  fit();
+})();
+
+/* ---------- the sound sculpture (recoloured for the teal card) ---------- */
+(function () {
+  const canvas = document.getElementById("viz");
+  const gl = canvas.getContext("webgl", { antialias: true, alpha: true, premultipliedAlpha: false });
+  if (!gl) return;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const TWO_PI = Math.PI * 2;
+  const F_LO = 300, F_HI = 12000;
+  const TURNS = 2.6, COIL_R = 1.5, COIL_H = 1.7, PHASE = 0.0;
+  const TTL = 30.0;
+  const PEAK_THRESH = 58, MEL_THRESH = 86, MEL_DT = 0.08;
+  const SPAWN_K = 4, MAX_PTS = 4500, MAX_MEL = 1500;
+
+  const vsrc = `
+    attribute vec3 aPos; attribute vec3 aColor; attribute float aSize; attribute float aAlpha;
+    uniform mat4 uMVP, uMV; uniform float uPix;
+    varying vec3 vColor; varying float vAlpha;
+    void main(){
+      vec4 mv = uMV * vec4(aPos, 1.0);
+      gl_Position = uMVP * vec4(aPos, 1.0);
+      gl_PointSize = clamp(aSize * uPix / max(0.05, -mv.z), 1.0, 60.0);
+      vColor = aColor; vAlpha = aAlpha;
+    }`;
+  const fsrc = `
+    precision highp float;
+    varying vec3 vColor; varying float vAlpha;
+    uniform int uMode;
+    void main(){
+      if (uMode == 0) {
+        vec2 c = gl_PointCoord - vec2(0.5);
+        float d = length(c);
+        float a = smoothstep(0.5, 0.04, d);
+        gl_FragColor = vec4(vColor, a * vAlpha);
+      } else {
+        gl_FragColor = vec4(vColor, vAlpha);
+      }
+    }`;
+  function compile(t,s){ const sh=gl.createShader(t); gl.shaderSource(sh,s); gl.compileShader(sh); if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsrc));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsrc));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const A = { pos: gl.getAttribLocation(prog,"aPos"), col: gl.getAttribLocation(prog,"aColor"), size: gl.getAttribLocation(prog,"aSize"), alpha: gl.getAttribLocation(prog,"aAlpha") };
+  const U = { mvp: gl.getUniformLocation(prog,"uMVP"), mv: gl.getUniformLocation(prog,"uMV"), pix: gl.getUniformLocation(prog,"uPix"), mode: gl.getUniformLocation(prog,"uMode") };
+  const bPos = gl.createBuffer(), bCol = gl.createBuffer(), bSize = gl.createBuffer(), bAlpha = gl.createBuffer();
+
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);  // ink over mint
+  gl.clearColor(0,0,0,0);
+
+  function perspective(fovy,aspect,near,far){ const f=1/Math.tan(fovy/2), nf=1/(near-far); return [f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0]; }
+  function mul(a,b){ const o=new Array(16); for(let c=0;c<4;c++)for(let r=0;r<4;r++){ o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3]; } return o; }
+  function lookAt(e,c,u){
+    let z0=e[0]-c[0],z1=e[1]-c[1],z2=e[2]-c[2]; let zl=Math.hypot(z0,z1,z2)||1; z0/=zl;z1/=zl;z2/=zl;
+    let x0=u[1]*z2-u[2]*z1, x1=u[2]*z0-u[0]*z2, x2=u[0]*z1-u[1]*z0; let xl=Math.hypot(x0,x1,x2)||1; x0/=xl;x1/=xl;x2/=xl;
+    const y0=z1*x2-z2*x1, y1=z2*x0-z0*x2, y2=z0*x1-z1*x0;
+    return [ x0,y0,z0,0, x1,y1,z1,0, x2,y2,z2,0, -(x0*e[0]+x1*e[1]+x2*e[2]), -(y0*e[0]+y1*e[1]+y2*e[2]), -(z0*e[0]+z1*e[1]+z2*e[2]), 1 ];
+  }
+  let proj, fitZoom = 1;
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio||1, 2);
+    const w = Math.max(1, Math.round(rect.width*dpr)), h = Math.max(1, Math.round(rect.height*dpr));
+    if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; }
+    gl.viewport(0,0,canvas.width,canvas.height);
+    const aspect = canvas.width/canvas.height;
+    fitZoom = aspect < 1 ? Math.min(1.9, 0.98/aspect) : 1;
+    proj = perspective(0.82, aspect, 0.1, 100);
+  }
+  window.__vizResize = resize;
+  resize();
+  if(window.ResizeObserver){ new ResizeObserver(resize).observe(canvas); }
+  window.addEventListener("load", resize);
+
+  // ---- colour by pitch: deep teal -> indigo -> violet -> magenta-rose (all darker than the mint card) ----
+  const CS = [ [0.0,[0.05,0.42,0.46]], [0.40,[0.16,0.30,0.60]], [0.72,[0.42,0.19,0.63]], [1.0,[0.78,0.24,0.49]] ];
+  function freqColor(n){ n=n<0?0:n>1?1:n; for(let i=0;i<CS.length-1;i++){ if(n<=CS[i+1][0]){ const a=CS[i][1],b=CS[i+1][1],t=(n-CS[i][0])/(CS[i+1][0]-CS[i][0]); return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]; } } return CS[CS.length-1][1]; }
+  function smooth(e0,e1,x){ let t=(x-e0)/(e1-e0); t=t<0?0:t>1?1:t; return t*t*(3-2*t); }
+  const LOGLO=Math.log2(F_LO), LOGHI=Math.log2(F_HI);
+  function freqNorm(hz){ return (Math.log2(hz)-LOGLO)/(LOGHI-LOGLO); }
+  function anchor(hz){ const n=freqNorm(hz); const a=n*TURNS*TWO_PI+PHASE; return [COIL_R*Math.cos(a),(n-0.5)*COIL_H,COIL_R*Math.sin(a)]; }
+  function rs(k){ let x=Math.random()*2-1,y=Math.random()*2-1,z=Math.random()*2-1; const l=Math.hypot(x,y,z)||1; const r=k*Math.cbrt(Math.random()); return [x/l*r,y/l*r,z/l*r]; }
+
+  let analyser=null, freq=null, timeBuf=null, audioCtx=null, stream=null, sr=48000, binHz=23.4;
+  const pts=[], mel=[]; let lastMel=-1; const HUD={ level:0 };
+
+  async function startAudio(){
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    await audioCtx.resume();
+    stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+    const src = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0.55;
+    src.connect(analyser);
+    freq = new Uint8Array(analyser.frequencyBinCount);
+    timeBuf = new Uint8Array(analyser.fftSize);
+    sr = audioCtx.sampleRate; binHz = sr / analyser.fftSize;
+  }
+
+  function analyze(now){
+    if(!analyser) return;
+    analyser.getByteFrequencyData(freq);
+    analyser.getByteTimeDomainData(timeBuf);
+    let sum=0; for(let i=0;i<timeBuf.length;i++){ const x=(timeBuf[i]-128)/128; sum+=x*x; }
+    const rms=Math.sqrt(sum/timeBuf.length); HUD.level += (Math.min(1,rms*4.8)-HUD.level)*0.3;
+
+    const minBin=Math.max(2,Math.floor(F_LO/binHz)), maxBin=Math.min(freq.length-2,Math.ceil(F_HI/binHz));
+    let domBin=-1, domMag=0; const peaks=[];
+    for(let i=minBin;i<=maxBin;i++){ const m=freq[i]; if(m>domMag){ domMag=m; domBin=i; } if(m>=PEAK_THRESH && m>freq[i-1] && m>=freq[i+1]) peaks.push([i,m]); }
+    peaks.sort((a,b)=>b[1]-a[1]);
+    const K=Math.min(peaks.length, SPAWN_K);
+    for(let k=0;k<K;k++){ const i=peaks[k][0], m=peaks[k][1], hz=i*binHz, n=freqNorm(hz), mag=m/255; const a=anchor(hz), o=rs(0.13+mag*0.22); pts.push({ x:a[0]+o[0], y:a[1]+o[1], z:a[2]+o[2], t:now, mag:mag, col:freqColor(n) }); }
+
+    if(domBin>0 && domMag>=MEL_THRESH && (lastMel<0 || now-lastMel>=MEL_DT)){ const hz=domBin*binHz, n=freqNorm(hz), a=anchor(hz), o=rs(0.03); mel.push({ x:a[0]+o[0], y:a[1]+o[1], z:a[2]+o[2], t:now, n:n }); lastMel=now; }
+
+    while(pts.length && now-pts[0].t>TTL) pts.shift();
+    while(pts.length>MAX_PTS) pts.shift();
+    while(mel.length && now-mel[0].t>TTL) mel.shift();
+    while(mel.length>MAX_MEL) mel.shift();
+  }
+
+  function upload(loc, buf, arr, size){ gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0); }
+
+  let t0=null, rot=0, lastT=0;
+  function frame(ts){
+    if(t0===null) t0=ts;
+    const t=(ts-t0)/1000;
+    const dt=Math.min(0.05, Math.max(0, t-lastT)); lastT=t;
+    analyze(t);
+
+    const spd = (reduce ? 0.05 : 0.11) + HUD.level*0.85;
+    rot += dt*spd;
+    const ang = reduce ? 0.6 : rot;
+    const bob = reduce ? 0 : Math.sin(t*0.16)*0.14;
+    const camR = 4.3 * fitZoom;
+    const sizeScale = fitZoom * 1.15;
+    const view = lookAt([Math.sin(ang)*camR, 0.55 + bob*0.5, Math.cos(ang)*camR], [0, -0.42, 0], [0,1,0]);
+    const mvp = mul(proj, view);
+
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniformMatrix4fv(U.mvp, false, new Float32Array(mvp));
+    gl.uniformMatrix4fv(U.mv, false, new Float32Array(view));
+    gl.uniform1f(U.pix, canvas.height);
+
+    // melody thread (dark ink over mint)
+    const segP=[], segC=[], segA=[];
+    for(let i=0;i<mel.length-1;i++){
+      const a=mel[i], b=mel[i+1];
+      if(b.t-a.t>0.26) continue;
+      const fa=1-smooth(0.55,1.0,(t-a.t)/TTL), fb=1-smooth(0.55,1.0,(t-b.t)/TTL);
+      const ca=freqColor(a.n), cb=freqColor(b.n);
+      segP.push(a.x,a.y,a.z, b.x,b.y,b.z);
+      segC.push(ca[0],ca[1],ca[2], cb[0],cb[1],cb[2]);
+      segA.push(0.42*fa, 0.42*fb);
+    }
+    if(segP.length){
+      gl.uniform1i(U.mode, 1);
+      upload(A.pos, bPos, new Float32Array(segP), 3);
+      upload(A.col, bCol, new Float32Array(segC), 3);
+      upload(A.size, bSize, new Float32Array(segA.length), 1);
+      upload(A.alpha, bAlpha, new Float32Array(segA), 1);
+      gl.drawArrays(gl.LINES, 0, segA.length);
+    }
+
+    // points
+    const n=pts.length;
+    if(n){
+      const P=new Float32Array(n*3), C=new Float32Array(n*3), Sz=new Float32Array(n), Al=new Float32Array(n);
+      for(let i=0;i<n;i++){
+        const p=pts[i]; const age=(t-p.t)/TTL; const s=smooth(0.55,1.0,age);
+        const fade=1-s; const grow=1.0+0.4*s; const b=0.45+0.55*p.mag;
+        P[i*3]=p.x; P[i*3+1]=p.y; P[i*3+2]=p.z;
+        C[i*3]=p.col[0]*b; C[i*3+1]=p.col[1]*b; C[i*3+2]=p.col[2]*b;
+        Sz[i]=(0.02+p.mag*0.075)*grow*sizeScale;
+        Al[i]=(0.35+0.6*p.mag)*fade;
+      }
+      gl.uniform1i(U.mode, 0);
+      upload(A.pos, bPos, P, 3);
+      upload(A.col, bCol, C, 3);
+      upload(A.size, bSize, Sz, 1);
+      upload(A.alpha, bAlpha, Al, 1);
+      gl.drawArrays(gl.POINTS, 0, n);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  /* ---------- Start button drives the microphone ---------- */
+  const card = document.getElementById("card");
+  const startBtn = document.getElementById("startBtn");
+  const descriptor = document.getElementById("descriptor");
+  const defaultText = descriptor.textContent;
+  let listening = false;
+  startBtn.addEventListener("click", async () => {
+    if(!audioCtx){
+      try { await startAudio(); listening = true; card.classList.add("listening"); }
+      catch(e){
+        descriptor.classList.add("error");
+        descriptor.textContent = (e && e.name === "NotAllowedError")
+          ? "Microphone blocked — allow it for this site in Safari and reload."
+          : "Couldn't reach the microphone.";
+      }
+      return;
+    }
+    listening = !listening;
+    if(listening){ audioCtx.resume(); card.classList.add("listening"); descriptor.classList.remove("error"); descriptor.textContent = defaultText; }
+    else { audioCtx.suspend(); card.classList.remove("listening"); }
+  });
+})();
+</script>
