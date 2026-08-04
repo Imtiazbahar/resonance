@@ -183,7 +183,7 @@
   const TWO_PI = Math.PI * 2;
   const F_LO = 300, F_HI = 12000;
   const TURNS = 2.6, COIL_R = 1.5, COIL_H = 1.7, PHASE = 0.0;
-  const TTL = 8.0;
+  const TTL = 5.0;
   const PEAK_THRESH = 58, MEL_THRESH = 86, MEL_DT = 0.08;
   const SPAWN_K = 4, MAX_PTS = 4500, MAX_MEL = 1500;
 
@@ -286,7 +286,7 @@
     for(let i=minBin;i<=maxBin;i++){ const m=freq[i]; if(m>domMag){ domMag=m; domBin=i; } if(m>=PEAK_THRESH && m>freq[i-1] && m>=freq[i+1]) peaks.push([i,m]); }
     peaks.sort((a,b)=>b[1]-a[1]);
     const K=Math.min(peaks.length, SPAWN_K);
-    for(let k=0;k<K;k++){ const i=peaks[k][0], m=peaks[k][1], hz=i*binHz, n=freqNorm(hz), mag=m/255; const a=anchor(hz), o=rs(0.13+mag*0.22); pts.push({ x:a[0]+o[0], y:a[1]+o[1], z:a[2]+o[2], t:now, mag:mag, col:freqColor(n) }); }
+    for(let k=0;k<K;k++){ const i=peaks[k][0], m=peaks[k][1], hz=i*binHz, n=freqNorm(hz), mag=m/255; const a=anchor(hz), o=rs(0.18+mag*0.26); pts.push({ x:a[0]+o[0], y:a[1]+o[1], z:a[2]+o[2], t:now, mag:mag, col:freqColor(n) }); }
 
     if(domBin>0 && domMag>=MEL_THRESH && (lastMel<0 || now-lastMel>=MEL_DT)){ const hz=domBin*binHz, n=freqNorm(hz), a=anchor(hz), o=rs(0.03); mel.push({ x:a[0]+o[0], y:a[1]+o[1], z:a[2]+o[2], t:now, n:n }); lastMel=now; }
 
