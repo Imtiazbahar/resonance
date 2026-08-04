@@ -81,10 +81,13 @@
   .veil .err { color: #ff8f9f; font-family: ui-monospace, monospace; font-size: 13px; min-height: 1em; }
 
   @media (max-width: 560px) {
-    .console { flex-direction: column; align-items: stretch; width: 92vw; }
-    .meters { justify-content: space-between; }
+    .wordmark { top: calc(12px + env(safe-area-inset-top)); left: 16px; }
+    .console { flex-direction: column; align-items: stretch; width: 94vw; gap: 8px; bottom: calc(10px + env(safe-area-inset-bottom)); }
+    .mic-btn { height: 54px; border-radius: 14px; }
+    .meters { justify-content: space-between; padding: 9px 10px; border-radius: 14px; }
     .meter { min-width: 0; flex: 1; padding: 0 6px; }
-    .wordmark p, .legend, .axis { display: none; }
+    .meter .v { font-size: 15px; margin: 3px 0 5px; }
+    .legend, .axis { display: none; }
   }
 </style>
 
@@ -198,13 +201,17 @@
     const y0=z1*x2-z2*x1, y1=z2*x0-z0*x2, y2=z0*x1-z1*x0;
     return [ x0,y0,z0,0, x1,y1,z1,0, x2,y2,z2,0, -(x0*e[0]+x1*e[1]+x2*e[2]), -(y0*e[0]+y1*e[1]+y2*e[2]), -(z0*e[0]+z1*e[1]+z2*e[2]), 1 ];
   }
-  let proj;
+  let proj, fitZoom = 1, portrait = false;
   function resize(){
     const dpr = Math.min(window.devicePixelRatio||1, 2);
     const w = Math.floor(canvas.clientWidth*dpr), h = Math.floor(canvas.clientHeight*dpr);
     if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; }
     gl.viewport(0,0,canvas.width,canvas.height);
-    proj = perspective(0.82, canvas.width/Math.max(1,canvas.height), 0.1, 100);
+    const aspect = canvas.width/Math.max(1,canvas.height);
+    portrait = aspect < 1;
+    // on a tall/narrow screen, pull the camera back so the wide form fits without clipping
+    fitZoom = portrait ? Math.min(1.9, 0.98/aspect) : 1;
+    proj = perspective(0.82, aspect, 0.1, 100);
   }
   window.addEventListener("resize", resize); resize();
 
@@ -310,8 +317,12 @@
 
     // camera slowly orbits the contained sculpture at the origin
     const ang = reduce ? 0.6 : t*0.12;
-    const camR = 4.3, camY = 1.15 + (reduce ? 0 : Math.sin(t*0.16)*0.14);
-    const view = lookAt([Math.sin(ang)*camR, camY, Math.cos(ang)*camR], [0, 0.0, 0], [0,1,0]);
+    const bob = reduce ? 0 : Math.sin(t*0.16)*0.14;
+    const camR = 4.3 * fitZoom;
+    // on phones sit more level and aim slightly low, so the form rides higher on screen (clear of the panels)
+    const camY = (portrait ? 0.5 : 1.15) + bob*(portrait ? 0.5 : 1);
+    const cY   = portrait ? -0.32 : 0.0;
+    const view = lookAt([Math.sin(ang)*camR, camY, Math.cos(ang)*camR], [0, cY, 0], [0,1,0]);
     const mvp = mul(proj, view);
 
     gl.clear(gl.COLOR_BUFFER_BIT);
