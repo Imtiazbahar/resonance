@@ -273,7 +273,7 @@
   // ---- labels that appear on a cluster and ride the spiral, then fade in ~500ms ----
   const taglayer = document.getElementById("taglayer");
   const LABELS = ["calibrating", "analysing", "mapping"];
-  const TAG_TTL = 1.2; const tags = []; let labelIdx = 0, nextTagAt = 0;
+  const TAG_TTL = 2.0; const tags = []; let labelIdx = 0, nextTagAt = 0;
   function spawnTag(now){
     if(!pts.length) return;
     const p = pts[(Math.random()*pts.length)|0];        // pin to a real point on a cluster
