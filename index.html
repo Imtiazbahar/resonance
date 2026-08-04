@@ -1,0 +1,380 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Resonance">
+<meta name="theme-color" content="#05060a">
+<title>Resonance · Birdsong — a 3D spatial score of your microphone</title>
+<style>
+  :root {
+    --bg-0: #05060a;
+    --ink: #d5d7e4;
+    --ink-dim: #6f7290;
+    --ink-faint: #43455e;
+    --panel: rgba(16, 18, 30, 0.55);
+    --panel-brd: rgba(130, 140, 200, 0.14);
+    --accent: #7cf6c0;
+    --good: #7cf6c0;
+    --glow: 0.0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(120% 80% at 60% 38%, rgba(50,120,150,calc(0.06 + var(--glow)*0.22)) 0%, rgba(10,14,26,0) 55%),
+      radial-gradient(140% 130% at 50% 118%, #0a0f1a 0%, var(--bg-0) 60%),
+      var(--bg-0);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+
+  .wordmark { position: absolute; top: clamp(20px,4vw,40px); left: clamp(20px,4vw,44px); }
+  .wordmark h1 { font-size: clamp(19px,2.5vw,28px); font-weight: 800; letter-spacing: -0.03em; line-height: 1; display: flex; align-items: center; gap: 0.5ch; }
+  .wordmark h1 .dot { width: 0.4em; height: 0.4em; border-radius: 50%; background: var(--accent); box-shadow: 0 0 calc(6px + var(--glow)*24px) rgba(124,246,192,calc(0.5 + var(--glow)*0.5)); transition: box-shadow 0.06s linear; }
+  .wordmark p { margin-top: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-dim); }
+
+  .legend { position: absolute; top: clamp(20px,4vw,40px); right: clamp(20px,4vw,44px); text-align: right; font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--ink-dim); line-height: 2; letter-spacing: 0.03em; }
+  .legend span { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .legend i { width: 20px; height: 0; border-radius: 2px; }
+  .legend i.d { width: 7px; height: 7px; border-radius: 50%; background: #6ee7ff; box-shadow: 0 0 8px #6ee7ff; }
+  .legend i.l { height: 2px; background: linear-gradient(90deg,#7c5cff,#7cf6c0); }
+
+  .axis { position: absolute; font-family: ui-monospace, Menlo, monospace; font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
+  .axis.y { left: clamp(18px,3.5vw,38px); top: 50%; transform: rotate(-90deg) translateX(50%); transform-origin: left center; }
+  .axis.x { right: clamp(20px,4vw,44px); bottom: calc(clamp(18px,4vh,40px) + 92px); }
+
+  .console { position: absolute; left: 50%; bottom: clamp(18px,4vh,40px); transform: translateX(-50%); display: flex; align-items: stretch; gap: 14px; pointer-events: auto; max-width: min(760px,92vw); }
+  .mic-btn { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 0 20px; height: 74px; border-radius: 16px; background: var(--panel); border: 1px solid var(--panel-brd); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); color: var(--ink); font-size: 14px; font-weight: 600; letter-spacing: -0.01em; cursor: pointer; white-space: nowrap; transition: border-color 0.2s, transform 0.08s; }
+  .mic-btn:hover { border-color: rgba(124,246,192,0.4); }
+  .mic-btn:active { transform: scale(0.97); }
+  .mic-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .mic-btn .ic { width: 20px; height: 20px; flex: none; }
+  .mic-btn .ic path, .mic-btn .ic line, .mic-btn .ic rect { stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; fill: none; }
+  .mic-btn.live { color: var(--good); border-color: rgba(124,246,192,0.35); }
+  .mic-btn .lbl small { display: block; font-family: ui-monospace, Menlo, monospace; font-weight: 500; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-dim); margin-top: 3px; }
+
+  .meters { display: flex; gap: 2px; align-items: stretch; padding: 12px 16px; border-radius: 16px; background: var(--panel); border: 1px solid var(--panel-brd); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); font-family: ui-monospace, Menlo, monospace; flex: 1 1 auto; }
+  .meter { display: flex; flex-direction: column; justify-content: space-between; padding: 0 12px; min-width: 62px; }
+  .meter + .meter { border-left: 1px solid rgba(130,140,200,0.09); }
+  .meter .k { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-dim); }
+  .meter .v { font-size: 16px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; margin: 5px 0 6px; }
+  .meter .v span { font-size: 10px; color: var(--ink-faint); font-weight: 500; margin-left: 1px; }
+  .bar { height: 4px; border-radius: 3px; background: rgba(140,150,210,0.14); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0%; border-radius: 3px; }
+  .meter[data-b="peaks"]  .bar i { background: linear-gradient(90deg,#6ee7ff,#7cf6c0); }
+  .meter[data-b="pitch"]  .bar i { background: linear-gradient(90deg,#7c5cff,#6ee7ff); }
+  .meter[data-b="level"]  .bar i { background: linear-gradient(90deg,#7cf6c0,#e8ff9c); }
+
+  .veil { position: fixed; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 22px; background: radial-gradient(90% 70% at 50% 45%, rgba(10,16,26,0.5), rgba(5,6,10,0.88)); backdrop-filter: blur(4px); padding: 24px; transition: opacity 0.6s ease; pointer-events: auto; }
+  .veil.gone { opacity: 0; pointer-events: none; }
+  .veil h2 { font-size: clamp(26px,5vw,44px); font-weight: 800; letter-spacing: -0.035em; max-width: 15ch; text-wrap: balance; line-height: 1.05; }
+  .veil p { color: var(--ink-dim); max-width: 44ch; line-height: 1.6; font-size: 15px; }
+  .veil .start { pointer-events: auto; margin-top: 4px; padding: 15px 30px; border-radius: 40px; border: 1px solid rgba(124,246,192,0.4); background: linear-gradient(180deg, rgba(124,246,192,0.15), rgba(124,246,192,0.05)); color: #eafff4; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; transition: transform 0.1s, box-shadow 0.25s, border-color 0.25s; }
+  .veil .start:hover { box-shadow: 0 8px 40px rgba(124,246,192,0.2); border-color: rgba(124,246,192,0.7); }
+  .veil .start:active { transform: scale(0.97); }
+  .veil .start:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  .veil .note { font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+  .veil .err { color: #ff8f9f; font-family: ui-monospace, monospace; font-size: 13px; min-height: 1em; }
+
+  @media (max-width: 560px) {
+    .console { flex-direction: column; align-items: stretch; width: 92vw; }
+    .meters { justify-content: space-between; }
+    .meter { min-width: 0; flex: 1; padding: 0 6px; }
+    .wordmark p, .legend, .axis { display: none; }
+  }
+</style>
+
+<canvas id="stage"></canvas>
+
+<div class="hud">
+  <div class="wordmark"><h1><span class="dot"></span>Resonance</h1><p>Birdsong · spatial score</p></div>
+  <div class="legend">
+    <span>each point — an FFT peak <i class="d"></i></span>
+    <span>the line — the melody <i class="l"></i></span>
+  </div>
+
+  <div class="console">
+    <button class="mic-btn" id="micBtn" aria-pressed="false">
+      <svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg>
+      <span class="lbl">Listening<small id="micState">tap to mute</small></span>
+    </button>
+    <div class="meters">
+      <div class="meter" data-b="peaks"><div class="k">Peaks</div><div class="v" id="vPeaks">0</div><div class="bar"><i id="mPeaks"></i></div></div>
+      <div class="meter" data-b="pitch"><div class="k">Pitch</div><div class="v" id="vPitch">0<span>Hz</span></div><div class="bar"><i id="mPitch"></i></div></div>
+      <div class="meter" data-b="level"><div class="k">Level</div><div class="v" id="vLevel">0<span>dB</span></div><div class="bar"><i id="mLevel"></i></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="veil" id="veil">
+  <p class="note">A 3D spatial score of live sound</p>
+  <h2>A song, built into a shape you can walk around.</h2>
+  <p>Every point is a frequency your microphone hears, placed at a fixed spot in space — so similar pitches gather into the same cluster, and repeated notes build lumps. A thread traces the melody between them while the whole sculpture slowly turns. Whistle, sing, or play birdsong to grow it. Audio never leaves your device.</p>
+  <button class="start" id="startBtn">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M6 11a6 6 0 0 0 12 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="17" x2="12" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Enable microphone
+  </button>
+  <div class="err" id="err"></div>
+</div>
+
+<script>
+"use strict";
+(function () {
+  const canvas = document.getElementById("stage");
+  const gl = canvas.getContext("webgl", { antialias: true, alpha: true, premultipliedAlpha: false });
+  if (!gl) { document.getElementById("err").textContent = "WebGL is not available in this browser."; return; }
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- config ---------- */
+  const TWO_PI = Math.PI * 2;
+  const F_LO = 300, F_HI = 12000;   // frequency range
+  // frequency is coiled into a fixed helix so the SAME pitch always lands in the
+  // SAME place -> repeated notes pile into clusters ("lumps"). Nothing scrolls.
+  const TURNS = 2.6;          // how many times the pitch range wraps around
+  const COIL_R = 1.5;         // radius of the coil
+  const COIL_H = 1.7;         // vertical span (low pitch bottom -> high pitch top) — flatter
+  const PHASE = 0.0;
+  const TTL = 30.0;           // seconds a point lives before it fades out
+  const PEAK_THRESH = 88;     // 0..255 — min magnitude to seed a point
+  const MEL_THRESH  = 118;    // 0..255 — dominant note must clear this for the thread
+  const MEL_DT = 0.08;        // seconds between melody samples
+  const SPAWN_K = 3;          // strongest peaks seeded per frame
+  const MAX_PTS = 4500, MAX_MEL = 1500;
+
+  /* ---------- shaders ---------- */
+  const vsrc = `
+    attribute vec3 aPos; attribute vec3 aColor; attribute float aSize; attribute float aAlpha;
+    uniform mat4 uMVP, uMV; uniform float uPix;
+    varying vec3 vColor; varying float vAlpha;
+    void main(){
+      vec4 mv = uMV * vec4(aPos, 1.0);
+      gl_Position = uMVP * vec4(aPos, 1.0);
+      gl_PointSize = clamp(aSize * uPix / max(0.05, -mv.z), 1.0, 46.0);
+      vColor = aColor; vAlpha = aAlpha;
+    }`;
+  const fsrc = `
+    precision highp float;
+    varying vec3 vColor; varying float vAlpha;
+    uniform int uMode;
+    void main(){
+      if (uMode == 0) {
+        vec2 c = gl_PointCoord - vec2(0.5);
+        float d = length(c);
+        float core = smoothstep(0.5, 0.0, d);
+        float glow = smoothstep(0.5, 0.16, d);
+        gl_FragColor = vec4(vColor, (core*0.85 + glow*0.35) * vAlpha);
+      } else {
+        gl_FragColor = vec4(vColor, vAlpha);
+      }
+    }`;
+
+  function compile(type, src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsrc));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsrc));
+  gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+
+  const A = { pos: gl.getAttribLocation(prog,"aPos"), col: gl.getAttribLocation(prog,"aColor"), size: gl.getAttribLocation(prog,"aSize"), alpha: gl.getAttribLocation(prog,"aAlpha") };
+  const U = { mvp: gl.getUniformLocation(prog,"uMVP"), mv: gl.getUniformLocation(prog,"uMV"), pix: gl.getUniformLocation(prog,"uPix"), mode: gl.getUniformLocation(prog,"uMode") };
+  const bPos = gl.createBuffer(), bCol = gl.createBuffer(), bSize = gl.createBuffer(), bAlpha = gl.createBuffer();
+
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);     // additive — glowing points on black
+  gl.clearColor(0,0,0,0);
+
+  /* ---------- matrices ---------- */
+  function perspective(fovy,aspect,near,far){ const f=1/Math.tan(fovy/2), nf=1/(near-far); return [f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0]; }
+  function mul(a,b){ const o=new Array(16); for(let c=0;c<4;c++)for(let r=0;r<4;r++){ o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3]; } return o; }
+  function lookAt(e,c,u){
+    let z0=e[0]-c[0],z1=e[1]-c[1],z2=e[2]-c[2]; let zl=Math.hypot(z0,z1,z2)||1; z0/=zl;z1/=zl;z2/=zl;
+    let x0=u[1]*z2-u[2]*z1, x1=u[2]*z0-u[0]*z2, x2=u[0]*z1-u[1]*z0; let xl=Math.hypot(x0,x1,x2)||1; x0/=xl;x1/=xl;x2/=xl;
+    const y0=z1*x2-z2*x1, y1=z2*x0-z0*x2, y2=z0*x1-z1*x0;
+    return [ x0,y0,z0,0, x1,y1,z1,0, x2,y2,z2,0, -(x0*e[0]+x1*e[1]+x2*e[2]), -(y0*e[0]+y1*e[1]+y2*e[2]), -(z0*e[0]+z1*e[1]+z2*e[2]), 1 ];
+  }
+  let proj;
+  function resize(){
+    const dpr = Math.min(window.devicePixelRatio||1, 2);
+    const w = Math.floor(canvas.clientWidth*dpr), h = Math.floor(canvas.clientHeight*dpr);
+    if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; }
+    gl.viewport(0,0,canvas.width,canvas.height);
+    proj = perspective(0.82, canvas.width/Math.max(1,canvas.height), 0.1, 100);
+  }
+  window.addEventListener("resize", resize); resize();
+
+  /* ---------- colour by pitch: violet -> cyan -> green -> white ---------- */
+  const CS = [ [0.0,[0.50,0.14,0.92]], [0.40,[0.14,0.72,1.0]], [0.72,[0.34,1.0,0.55]], [1.0,[0.95,0.98,1.0]] ];
+  function freqColor(n){ n=n<0?0:n>1?1:n; for(let i=0;i<CS.length-1;i++){ if(n<=CS[i+1][0]){ const a=CS[i][1],b=CS[i+1][1],t=(n-CS[i][0])/(CS[i+1][0]-CS[i][0]); return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]; } } return CS[CS.length-1][1]; }
+  function smooth(e0,e1,x){ let t=(x-e0)/(e1-e0); t=t<0?0:t>1?1:t; return t*t*(3-2*t); }
+  const LOGLO=Math.log2(F_LO), LOGHI=Math.log2(F_HI);
+  function freqNorm(hz){ return (Math.log2(hz)-LOGLO)/(LOGHI-LOGLO); }
+  // fixed 3D home for a frequency: coil it so similar pitches share a location
+  function anchor(hz){ const n=freqNorm(hz); const a=n*TURNS*TWO_PI+PHASE; return [COIL_R*Math.cos(a), (n-0.5)*COIL_H, COIL_R*Math.sin(a)]; }
+  // random offset inside a sphere of radius k -> gives each cluster volume
+  function rs(k){ let x=Math.random()*2-1,y=Math.random()*2-1,z=Math.random()*2-1; const l=Math.hypot(x,y,z)||1; const r=k*Math.cbrt(Math.random()); return [x/l*r,y/l*r,z/l*r]; }
+
+  /* ---------- audio ---------- */
+  let analyser=null, freq=null, timeBuf=null, audioCtx=null, stream=null, sr=48000, binHz=23.4;
+  const pts = [];   // {t, y, z, mag, col:[r,g,b]}
+  const mel = [];   // {t, y, z, n, mag}
+  let lastMel = -1;
+  const HUD = { peaks:0, pitch:0, level:0 };
+
+  async function startAudio(){
+    stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    sr = audioCtx.sampleRate;
+    const src = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 4096;
+    analyser.smoothingTimeConstant = 0.55;
+    src.connect(analyser);
+    freq = new Uint8Array(analyser.frequencyBinCount);
+    timeBuf = new Uint8Array(analyser.fftSize);
+    binHz = sr / analyser.fftSize;
+  }
+
+  function analyze(now){
+    if(!analyser) return;
+    analyser.getByteFrequencyData(freq);
+    analyser.getByteTimeDomainData(timeBuf);
+
+    // overall level (RMS)
+    let sum=0; for(let i=0;i<timeBuf.length;i++){ const x=(timeBuf[i]-128)/128; sum+=x*x; }
+    const rms=Math.sqrt(sum/timeBuf.length); HUD.level += (Math.min(1,rms*3.2)-HUD.level)*0.3;
+
+    // find spectral peaks + the single dominant note
+    const minBin=Math.max(2,Math.floor(F_LO/binHz)), maxBin=Math.min(freq.length-2,Math.ceil(F_HI/binHz));
+    let domBin=-1, domMag=0; const peaks=[];
+    for(let i=minBin;i<=maxBin;i++){
+      const m=freq[i];
+      if(m>domMag){ domMag=m; domBin=i; }
+      if(m>=PEAK_THRESH && m>freq[i-1] && m>=freq[i+1]) peaks.push([i,m]);
+    }
+    // seed the strongest few at their fixed anchors (they build up the clusters)
+    peaks.sort((a,b)=>b[1]-a[1]);
+    const K=Math.min(peaks.length, SPAWN_K);
+    for(let k=0;k<K;k++){
+      const i=peaks[k][0], m=peaks[k][1], hz=i*binHz, n=freqNorm(hz), mag=m/255;
+      const a=anchor(hz), o=rs(0.05+mag*0.16);
+      pts.push({ x:a[0]+o[0], y:a[1]+o[1], z:a[2]+o[2], t:now, mag:mag, col:freqColor(n) });
+    }
+    HUD.peaks = pts.length;
+
+    // melody thread: dominant note sampled over time, breaks on silence
+    if(domBin>0 && domMag>=MEL_THRESH && (lastMel<0 || now-lastMel>=MEL_DT)){
+      const hz=domBin*binHz, n=freqNorm(hz), a=anchor(hz), o=rs(0.03);
+      mel.push({ x:a[0]+o[0], y:a[1]+o[1], z:a[2]+o[2], t:now, n:n, mag:domMag/255 });
+      lastMel=now; HUD.pitch += (hz-HUD.pitch)*0.3;
+    }
+
+    // accumulate, then fade the oldest out so the sculpture stays contained
+    while(pts.length && now-pts[0].t>TTL) pts.shift();
+    while(pts.length>MAX_PTS) pts.shift();
+    while(mel.length && now-mel[0].t>TTL) mel.shift();
+    while(mel.length>MAX_MEL) mel.shift();
+  }
+
+  /* ---------- HUD ---------- */
+  const el = { vPeaks:document.getElementById("vPeaks"), mPeaks:document.getElementById("mPeaks"),
+    vPitch:document.getElementById("vPitch"), mPitch:document.getElementById("mPitch"),
+    vLevel:document.getElementById("vLevel"), mLevel:document.getElementById("mLevel") };
+  let hudTick=0;
+  function updateHUD(){
+    if(hudTick++%3!==0) return;
+    el.vPeaks.textContent = pts.length;
+    el.mPeaks.style.width = Math.min(100, pts.length/40) + "%";
+    el.vPitch.innerHTML = (HUD.pitch>20 ? Math.round(HUD.pitch) : 0) + "<span>Hz</span>";
+    el.mPitch.style.width = Math.min(100, freqNorm(HUD.pitch)*100) + "%";
+    const db = HUD.level>0.001 ? Math.round(20*Math.log10(HUD.level)) : -60;
+    el.vLevel.innerHTML = (HUD.level>0.001 ? db : "−∞") + "<span>dB</span>";
+    el.mLevel.style.width = (HUD.level*100) + "%";
+    document.documentElement.style.setProperty("--glow", HUD.level.toFixed(3));
+  }
+
+  /* ---------- render ---------- */
+  function upload(loc, buf, arr, size){ gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0); }
+
+  let t0=null;
+  function frame(ts){
+    if(t0===null) t0=ts;
+    const t=(ts-t0)/1000;
+    analyze(t);
+    updateHUD();
+
+    // camera slowly orbits the contained sculpture at the origin
+    const ang = reduce ? 0.6 : t*0.12;
+    const camR = 4.3, camY = 1.15 + (reduce ? 0 : Math.sin(t*0.16)*0.14);
+    const view = lookAt([Math.sin(ang)*camR, camY, Math.cos(ang)*camR], [0, 0.0, 0], [0,1,0]);
+    const mvp = mul(proj, view);
+
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniformMatrix4fv(U.mvp, false, new Float32Array(mvp));
+    gl.uniformMatrix4fv(U.mv, false, new Float32Array(view));
+    gl.uniform1f(U.pix, canvas.height);
+
+    // --- melody thread (drawn first, underneath the points) ---
+    const segP=[], segC=[], segA=[];
+    for(let i=0;i<mel.length-1;i++){
+      const a=mel[i], b=mel[i+1];
+      if(b.t-a.t>0.26) continue;            // break the thread across silence
+      const fa=1-smooth(0.55,1.0,(t-a.t)/TTL), fb=1-smooth(0.55,1.0,(t-b.t)/TTL);
+      const ca=freqColor(a.n), cb=freqColor(b.n);
+      segP.push(a.x,a.y,a.z, b.x,b.y,b.z);
+      segC.push(ca[0]*0.7+0.25, ca[1]*0.7+0.25, ca[2]*0.7+0.25,  cb[0]*0.7+0.25, cb[1]*0.7+0.25, cb[2]*0.7+0.25);
+      segA.push(0.45*fa, 0.45*fb);
+    }
+    if(segP.length){
+      gl.uniform1i(U.mode, 1);
+      upload(A.pos, bPos, new Float32Array(segP), 3);
+      upload(A.col, bCol, new Float32Array(segC), 3);
+      upload(A.size, bSize, new Float32Array(segA.length), 1);
+      upload(A.alpha, bAlpha, new Float32Array(segA), 1);
+      gl.drawArrays(gl.LINES, 0, segA.length);
+    }
+
+    // --- accumulated peak points (fixed in space, fading with age) ---
+    const n=pts.length;
+    if(n){
+      const P=new Float32Array(n*3), C=new Float32Array(n*3), Sz=new Float32Array(n), Al=new Float32Array(n);
+      for(let i=0;i<n;i++){
+        const p=pts[i]; const age=(t-p.t)/TTL; const s=smooth(0.55,1.0,age);
+        const fade=1-s; const grow=1.0+0.4*s; const b=0.4+0.6*p.mag;   // swell 40% while fading out
+        P[i*3]=p.x; P[i*3+1]=p.y; P[i*3+2]=p.z;
+        C[i*3]=p.col[0]*b; C[i*3+1]=p.col[1]*b; C[i*3+2]=p.col[2]*b;
+        Sz[i]=(0.02+p.mag*0.075)*grow;
+        Al[i]=(0.28+0.72*p.mag)*fade;
+      }
+      gl.uniform1i(U.mode, 0);
+      upload(A.pos, bPos, P, 3);
+      upload(A.col, bCol, C, 3);
+      upload(A.size, bSize, Sz, 1);
+      upload(A.alpha, bAlpha, Al, 1);
+      gl.drawArrays(gl.POINTS, 0, n);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  /* ---------- controls ---------- */
+  const veil=document.getElementById("veil"), startBtn=document.getElementById("startBtn"), err=document.getElementById("err");
+  const micBtn=document.getElementById("micBtn"), micState=document.getElementById("micState");
+  let muted=false;
+  startBtn.addEventListener("click", async ()=>{
+    err.textContent=""; startBtn.disabled=true; startBtn.style.opacity=0.6;
+    try{ await startAudio(); veil.classList.add("gone"); micBtn.classList.add("live"); micBtn.setAttribute("aria-pressed","true"); }
+    catch(e){ startBtn.disabled=false; startBtn.style.opacity=1; err.textContent=(e&&e.name==="NotAllowedError")?"Microphone blocked. Allow access in your browser and retry.":"Couldn't reach a microphone. Check your device and retry."; }
+  });
+  micBtn.addEventListener("click", ()=>{
+    if(!audioCtx) return; muted=!muted;
+    if(muted){ audioCtx.suspend(); micBtn.classList.remove("live"); micBtn.setAttribute("aria-pressed","false"); micState.textContent="tap to resume"; micBtn.querySelector(".lbl").childNodes[0].nodeValue="Muted"; }
+    else { audioCtx.resume(); micBtn.classList.add("live"); micBtn.setAttribute("aria-pressed","true"); micState.textContent="tap to mute"; micBtn.querySelector(".lbl").childNodes[0].nodeValue="Listening"; }
+  });
+})();
+</script>
