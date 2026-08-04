@@ -269,7 +269,7 @@
     const K=Math.min(peaks.length, SPAWN_K);
     for(let k=0;k<K;k++){
       const i=peaks[k][0], m=peaks[k][1], hz=i*binHz, n=freqNorm(hz), mag=m/255;
-      const a=anchor(hz), o=rs(0.05+mag*0.16);
+      const a=anchor(hz), o=rs(0.13+mag*0.22);   // looser scatter -> more space between dots
       pts.push({ x:a[0]+o[0], y:a[1]+o[1], z:a[2]+o[2], t:now, mag:mag, col:freqColor(n) });
     }
     HUD.peaks = pts.length;
