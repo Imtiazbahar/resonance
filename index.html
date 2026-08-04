@@ -142,10 +142,10 @@
   const COIL_H = 1.7;         // vertical span (low pitch bottom -> high pitch top) — flatter
   const PHASE = 0.0;
   const TTL = 30.0;           // seconds a point lives before it fades out
-  const PEAK_THRESH = 88;     // 0..255 — min magnitude to seed a point
-  const MEL_THRESH  = 118;    // 0..255 — dominant note must clear this for the thread
+  const PEAK_THRESH = 58;     // 0..255 — min magnitude to seed a point (lower = more sensitive)
+  const MEL_THRESH  = 86;     // 0..255 — dominant note must clear this for the thread
   const MEL_DT = 0.08;        // seconds between melody samples
-  const SPAWN_K = 3;          // strongest peaks seeded per frame
+  const SPAWN_K = 4;          // strongest peaks seeded per frame
   const MAX_PTS = 4500, MAX_MEL = 1500;
 
   /* ---------- shaders ---------- */
@@ -254,7 +254,7 @@
 
     // overall level (RMS)
     let sum=0; for(let i=0;i<timeBuf.length;i++){ const x=(timeBuf[i]-128)/128; sum+=x*x; }
-    const rms=Math.sqrt(sum/timeBuf.length); HUD.level += (Math.min(1,rms*3.2)-HUD.level)*0.3;
+    const rms=Math.sqrt(sum/timeBuf.length); HUD.level += (Math.min(1,rms*4.8)-HUD.level)*0.3;
 
     // find spectral peaks + the single dominant note
     const minBin=Math.max(2,Math.floor(F_LO/binHz)), maxBin=Math.min(freq.length-2,Math.ceil(F_HI/binHz));
