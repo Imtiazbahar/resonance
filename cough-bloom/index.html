@@ -365,7 +365,7 @@
     const bob = reduce ? 0 : Math.sin(t*0.16)*0.14;
     const camR = 4.3 * fitZoom;
     const sizeScale = fitZoom * 1.15;
-    const view = lookAt([Math.sin(ang)*camR, 0.55 + bob*0.5, Math.cos(ang)*camR], [0, -0.42, 0], [0,1,0]);
+    const view = lookAt([Math.sin(ang)*camR, 0.55 + bob*0.5, Math.cos(ang)*camR], [0, -1.30, 0], [0,1,0]);
     const mvp = mul(proj, view);
 
     gl.clear(gl.COLOR_BUFFER_BIT);
