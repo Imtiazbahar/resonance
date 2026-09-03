@@ -125,26 +125,27 @@
 
   // ---------- States: each defines the INTERNAL colour pattern + behaviour ----
   // The glass sphere itself never changes shape — only the pattern inside reacts.
+  // inner = [saturated core, mid tone, bright near-white accent] for in-glass contrast
   const STATES = {
     idle:      { name:'Idle',      hint:'Waiting for you',
-                 inner:[[70,150,255],[50,110,235],[120,180,255]],
-                 swirl:0.14, spread:0.34, drive:0.0 },
+                 inner:[[5,55,255],[80,140,255],[190,225,255]],
+                 swirl:0.16, spread:0.36, drive:0.0 },
     listening: { name:'Listening', hint:'Speak — the pattern reacts to your voice',
-                 inner:[[70,205,255],[60,150,255],[130,240,235]],
-                 swirl:0.30, spread:0.40, drive:1.0 },
+                 inner:[[0,165,255],[70,215,255],[200,245,255]],
+                 swirl:0.32, spread:0.42, drive:1.0 },
     thinking:  { name:'Thinking',  hint:'Processing',
-                 inner:[[165,115,255],[120,110,255],[220,120,235]],
-                 swirl:1.05, spread:0.30, drive:0.0 },
+                 inner:[[150,40,255],[200,90,255],[225,180,255]],
+                 swirl:1.05, spread:0.32, drive:0.0 },
     speaking:  { name:'Speaking',  hint:'Agent is responding',
-                 inner:[[95,235,205],[80,195,255],[140,150,255]],
-                 swirl:0.42, spread:0.38, drive:0.85 }
+                 inner:[[0,220,160],[70,235,215],[200,255,235]],
+                 swirl:0.44, spread:0.40, drive:0.85 }
   };
 
   let state = 'idle';
   // Eased parameters for smooth transitions between states
   const P = {
-    inner:[[70,150,255],[50,110,235],[120,180,255]],
-    swirl:0.14, spread:0.34, drive:0, level:0
+    inner:[[5,55,255],[80,140,255],[190,225,255]],
+    swirl:0.16, spread:0.36, drive:0, level:0
   };
 
   // ---------- Sizing ---------------------------------------------------------
@@ -280,31 +281,43 @@
     ctx.save();
     ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.clip();
 
-    // 2a) glass body volume — deep tint at the rim, luminous toward the light
+    // 2a) clear glass interior — kept dark & neutral so colour swishes read with contrast
     const lx=cx-R*0.28, ly=cy-R*0.32;
-    const glassLight=mix(prim,WHITE,0.55), glassMid=mix(prim,INK,0.35), glassDeep=mix(prim,INK,0.72);
+    const glassLight=mix(prim,INK,0.50), glassMid=mix(prim,INK,0.70), glassDeep=mix(prim,INK,0.88);
     const body=ctx.createRadialGradient(lx,ly,R*0.05, cx,cy,R*1.15);
     body.addColorStop(0, rgba(glassLight,1));
-    body.addColorStop(0.45, rgba(glassMid,1));
+    body.addColorStop(0.5, rgba(glassMid,1));
     body.addColorStop(1, rgba(glassDeep,1));
     ctx.fillStyle=body; ctx.fillRect(cx-R,cy-R,2*R,2*R);
 
-    // 2b) internal colour shapes — the pattern that swirls & reacts
-    ctx.globalCompositeOperation='screen';
+    // 2b) colour swishes — saturated, elongated ribbons that swirl (the marble pattern)
     const N=5;
     for(let i=0;i<N;i++){
-      const ang=swirlPhase*(1+i*0.15) + i*(Math.PI*2/N);
-      const orbit=R*(P.spread*(0.5+i*0.14) )*(1+drive*0.35);
+      const ang=swirlPhase*(1+i*0.14) + i*(Math.PI*2/N);
+      const orbit=R*(P.spread*(0.42+i*0.13))*(1+drive*0.35);
       const wob=Math.sin(t*(0.6+i*0.3)+i);
       const x=cx+Math.cos(ang)*orbit;
       const y=cy+Math.sin(ang*1.08+wob*0.4)*orbit*0.9;
-      const rad=R*(0.60-i*0.07)*(1+drive*0.30);
+      const rad=R*(0.46-i*0.05)*(1+drive*0.32);
       const c=P.inner[i%3];
-      const g=ctx.createRadialGradient(x,y,0,x,y,rad);
-      g.addColorStop(0, rgba(mix(c,WHITE,0.15), 0.55+drive*0.18));
-      g.addColorStop(0.6, rgba(c, 0.22));
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.rotate(ang+Math.PI/2);
+      ctx.scale(1.7,0.60);                 // stretch the blob into a swish
+      const g=ctx.createRadialGradient(0,0,0,0,0,rad);
+      g.addColorStop(0, rgba(c, 0.85+drive*0.12));   // saturated core (source-over keeps it vivid)
+      g.addColorStop(0.5, rgba(c, 0.34));
       g.addColorStop(1, rgba(c,0));
-      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,rad,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+    // bright wet colour core near the light — the shiny highlight seen inside the glass
+    ctx.globalCompositeOperation='screen';
+    { const hc=P.inner[2], hx=cx-R*0.12, hy=cy-R*0.08, hr=R*0.52*(1+drive*0.3);
+      const hg=ctx.createRadialGradient(hx,hy,0,hx,hy,hr);
+      hg.addColorStop(0, rgba(hc,0.55+drive*0.22));
+      hg.addColorStop(1, rgba(hc,0));
+      ctx.fillStyle=hg; ctx.beginPath(); ctx.arc(hx,hy,hr,0,Math.PI*2); ctx.fill();
     }
 
     // 2c) refracted light ribbon curving through the glass
