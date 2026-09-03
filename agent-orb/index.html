@@ -114,41 +114,42 @@ void main(){
     float z = sqrt(max(0.0, 1.0 - rc*rc));
     vec3 N = normalize(vec3(d, z));
     vec3 V = vec3(0.0, 0.0, 1.0);
-    vec3 L = normalize(vec3(-0.55, 0.62, 0.72));
+    vec3 L = normalize(vec3(-0.5, 0.55, 0.75));
 
-    // ---- swirling pigment inside the glass (refracted sample of a warped noise field) ----
-    vec3 rdir = refract(-V, N, 0.66);                    // into the glass
-    float tt = uTime*(0.12 + uSwirl*0.22)*(1.0 + uDrive*0.9);
-    vec3 p = vec3(d*1.25, z*0.55) + rdir*0.55 + vec3(0.0,0.0,tt);
-    vec3 q = p*2.1;
-    vec2 w = vec2(fbm(q+2.3), fbm(q+7.9));               // domain warp -> organic swirl
-    float n = fbm(q + vec3(w-0.5,0.0)*(2.4+uDrive*1.6));
-    n = clamp(n, 0.0, 1.0);
+    // ---- smooth swirling glass ribbons (laminar vortex, not turbulent cloud) ----
+    float tt = uTime*(0.10 + uSwirl*0.20)*(1.0 + uDrive*0.8);
+    vec3 rd = refract(-V, N, 0.72);
+    vec3 Pp = vec3(d, z*0.7) + rd*0.45;             // look a little way into the glass
+    float ra = length(Pp.xy);
+    float ang = atan(Pp.y, Pp.x) + ra*3.2 + tt;     // vortex twist (only inside cos/sin -> seamless)
+    vec2 sw = vec2(cos(ang), sin(ang)) * ra;        // swirled, continuous coordinates
+    vec3 Q  = vec3(sw, Pp.z*1.2 + tt*0.4);
+    float w = fbm(Q*1.7);                            // smooth large-scale variation
+    float bands = 0.5 + 0.5*sin((Q.x + Q.y)*6.0 + w*6.0);   // flowing ribbons (no seam)
+    float v = clamp(mix(w, bands, 0.6), 0.0, 1.0);
 
-    // colour ramp: deep -> saturated -> bright  (hard internal contrast)
-    vec3 deep   = uColor*0.08;
-    vec3 midc   = uColor;
-    vec3 bright = mix(uColor, vec3(1.0), 0.82);
-    vec3 ic = mix(deep, midc, smoothstep(0.28, 0.56, n));
-    ic = mix(ic, bright, smoothstep(0.64, 0.94, n));
+    // ---- luminous colour bands (glass transmits light, so keep it bright) ----
+    vec3 c1 = mix(uColor, vec3(0.03,0.08,0.34), 0.45);  // deeper blue, still luminous
+    vec3 c2 = uColor;                                    // saturated core
+    vec3 c3 = mix(uColor, vec3(1.0), 0.82);             // bright near-white
+    vec3 ic = mix(c1, c2, smoothstep(0.0, 0.5, v));
+    ic = mix(ic, c3, smoothstep(0.55, 0.95, v));
 
-    // ---- form lighting: severe light/dark like real glass ----
+    // ---- gentle form shading — stays luminous, never black ----
     float diff = clamp(dot(N, L), 0.0, 1.0);
-    col = ic * (0.10 + 1.05*diff);
-    col *= mix(1.0, 0.30, smoothstep(0.55, 1.0, rc));    // deepen toward the rim
+    col = ic * (0.78 + 0.5*diff);
+    col *= mix(1.0, 0.7, smoothstep(0.85, 1.0, rc));    // thin seat at the very rim
 
-    // ---- sharp specular hot-spot ----
+    // ---- glossy reflections ----
+    float refl = smoothstep(0.52, 0.0, length(d - vec2(-0.30, 0.34)));  // soft key reflection
+    col += vec3(1.0) * refl * 0.55;
     vec3 H = normalize(L + V);
-    float sp = pow(max(dot(N,H),0.0), 140.0)*1.4 + pow(max(dot(N,H),0.0), 26.0)*0.22;
+    float sp = pow(max(dot(N,H),0.0), 220.0) * 1.7;     // sharp wet hot-spot
     col += vec3(sp);
-
-    // ---- fresnel rim light ----
-    float fres = pow(1.0 - max(dot(N,V),0.0), 3.0);
-    col += mix(uColor, vec3(1.0), 0.7) * fres * 0.75;
-
-    // ---- bright refractive lens near the bottom ----
-    float lens = smoothstep(0.72, 0.0, length(d - vec2(0.0, 0.42)));
-    col += mix(uColor, vec3(1.0), 0.5) * lens * (0.35 + uDrive*0.4) * z;
+    float fres = pow(1.0 - max(dot(N,V),0.0), 2.4);     // bright refractive rim
+    col += mix(uColor, vec3(1.0), 0.85) * fres * 0.85;
+    float lens = smoothstep(0.6, 0.0, length(d - vec2(0.0, 0.5)));       // bottom lens
+    col += mix(uColor, vec3(1.0), 0.7) * lens * (0.5 + uDrive*0.4) * z;
 
     float aa = smoothstep(1.0, 1.0 - 2.5/uRadius, rr);
     alpha = aa;
