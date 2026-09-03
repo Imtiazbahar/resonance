@@ -8,7 +8,7 @@
 <title>Resonance · Agent Orb — a listening AI voice visualiser</title>
 <style>
   :root {
-    /* ---- Brand-themeable tokens: swap these to rebrand the orb ---- */
+    /* ---- Brand-themeable tokens ---- */
     --bg-0:   #05060a;
     --ink:    #e7e9f5;
     --ink-dim:#8b8fb0;
@@ -23,7 +23,7 @@
   html, body { height: 100%; }
   body {
     background:
-      radial-gradient(120% 90% at 50% 30%, rgba(70,80,180,0.10) 0%, rgba(10,12,24,0) 55%),
+      radial-gradient(120% 90% at 50% 30%, rgba(60,70,150,0.08) 0%, rgba(10,12,24,0) 55%),
       radial-gradient(140% 130% at 50% 120%, #0a0c18 0%, var(--bg-0) 60%),
       var(--bg-0);
     color: var(--ink);
@@ -36,18 +36,15 @@
 
   .hud { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
 
-  /* Wordmark */
   .wordmark { position: absolute; top: clamp(20px,4vw,40px); left: clamp(20px,5vw,44px); }
   .wordmark h1 { font-size: clamp(18px,2.4vw,26px); font-weight: 800; letter-spacing: -0.03em; line-height: 1; display: flex; align-items: center; gap: 0.5ch; }
   .wordmark h1 .dot { width: 0.38em; height: 0.38em; border-radius: 50%; background: var(--live-col, #8ea2ff); box-shadow: 0 0 12px var(--live-col, #8ea2ff); transition: background .4s, box-shadow .4s; }
   .wordmark p { margin-top: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-dim); }
 
-  /* Center status caption under the orb */
-  .status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, calc(-50% + var(--orb-r, 150px) + 42px)); text-align: center; transition: transform .3s; }
+  .status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, calc(-50% + var(--orb-r, 150px) + 46px)); text-align: center; transition: transform .3s; }
   .status .state { font-size: clamp(20px,3.4vw,30px); font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
   .status .hint { margin-top: 10px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); min-height: 1em; }
 
-  /* Bottom console */
   .console { position: absolute; left: 50%; bottom: clamp(22px, 5vh, 46px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 16px; pointer-events: auto; width: min(560px, 92vw); }
   .segmented { display: flex; gap: 6px; padding: 6px; border-radius: 18px; background: var(--panel); border: 1px solid var(--panel-brd); backdrop-filter: blur(20px) saturate(1.3); -webkit-backdrop-filter: blur(20px) saturate(1.3); width: 100%; }
   .seg { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 4px 9px; border-radius: 13px; background: transparent; border: 1px solid transparent; color: var(--ink-dim); font-family: inherit; font-size: 12px; font-weight: 600; letter-spacing: -0.01em; cursor: pointer; transition: background .18s, color .18s, border-color .18s; }
@@ -62,11 +59,10 @@
   .micdot.on { background: #62e4a8; box-shadow: 0 0 10px #62e4a8; }
   .micdot.err { background: #ff6b7d; box-shadow: 0 0 10px #ff6b7d; }
 
-  /* first-run gate for autoplay/mic on mobile */
   .gate { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(5,6,10,0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); pointer-events: auto; }
   .gate button { pointer-events: auto; padding: 16px 30px; border-radius: 16px; background: var(--panel); border: 1px solid var(--panel-brd); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); color: var(--ink); font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; cursor: pointer; display: flex; align-items: center; gap: 10px; }
   .gate button .ic { width: 20px; height: 20px; }
-  .gate button .ic path, .gate button .ic line, .gate button .ic rect { stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; fill: none; }
+  .gate button .ic path { stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; fill: none; }
   .gate small { display: block; font-family: ui-monospace, Menlo, monospace; font-weight: 500; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); margin-top: 4px; }
 
   @media (max-width: 480px) {
@@ -126,31 +122,30 @@
   "use strict";
   const canvas = document.getElementById('orb');
   const ctx = canvas.getContext('2d', { alpha: true });
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // ---------- State palettes -------------------------------------------------
-  // Each state defines the flowing-orb colour trio, glow colour and behaviour.
+  // ---------- States: each defines the INTERNAL colour pattern + behaviour ----
+  // The glass sphere itself never changes shape — only the pattern inside reacts.
   const STATES = {
     idle:      { name:'Idle',      hint:'Waiting for you',
-                 cols:[[120,140,255],[90,110,220],[150,120,255]], glow:[120,140,255],
-                 breathe:0.06, wobble:0.05, spin:0.04, drive:0.0 },
-    listening: { name:'Listening', hint:'Speak — the orb reacts to your voice',
-                 cols:[[90,200,255],[70,160,255],[120,240,220]], glow:[110,210,255],
-                 breathe:0.05, wobble:0.10, spin:0.10, drive:1.0 },
+                 inner:[[70,150,255],[50,110,235],[120,180,255]],
+                 swirl:0.14, spread:0.34, drive:0.0 },
+    listening: { name:'Listening', hint:'Speak — the pattern reacts to your voice',
+                 inner:[[70,205,255],[60,150,255],[130,240,235]],
+                 swirl:0.30, spread:0.40, drive:1.0 },
     thinking:  { name:'Thinking',  hint:'Processing',
-                 cols:[[170,120,255],[120,110,255],[220,120,230]], glow:[180,130,255],
-                 breathe:0.05, wobble:0.14, spin:0.55, drive:0.0 },
+                 inner:[[165,115,255],[120,110,255],[220,120,235]],
+                 swirl:1.05, spread:0.30, drive:0.0 },
     speaking:  { name:'Speaking',  hint:'Agent is responding',
-                 cols:[[120,240,200],[90,200,255],[150,150,255]], glow:[120,235,210],
-                 breathe:0.06, wobble:0.10, spin:0.16, drive:0.85 }
+                 inner:[[95,235,205],[80,195,255],[140,150,255]],
+                 swirl:0.42, spread:0.38, drive:0.85 }
   };
 
   let state = 'idle';
-  // animated (eased) params so state changes feel smooth
-  const P = { r:0, g:0, b:0, glowR:0, glowG:0, glowB:0, breathe:0.06, wobble:0.05, spin:0.04, drive:0, level:0, live:0 };
-  // init to idle colours
-  P.r=STATES.idle.cols[0][0]; P.g=STATES.idle.cols[0][1]; P.b=STATES.idle.cols[0][2];
-  P.glowR=STATES.idle.glow[0]; P.glowG=STATES.idle.glow[1]; P.glowB=STATES.idle.glow[2];
+  // Eased parameters for smooth transitions between states
+  const P = {
+    inner:[[70,150,255],[50,110,235],[120,180,255]],
+    swirl:0.14, spread:0.34, drive:0, level:0
+  };
 
   // ---------- Sizing ---------------------------------------------------------
   let W=0, H=0, cx=0, cy=0, baseR=0, dpr=1;
@@ -161,10 +156,24 @@
     canvas.style.width = W+'px'; canvas.style.height = H+'px';
     ctx.setTransform(dpr,0,0,dpr,0,0);
     cx = W/2; cy = H/2 - Math.min(H*0.06, 40);
-    baseR = Math.max(64, Math.min(W, H) * 0.20);
+    baseR = Math.max(70, Math.min(W, H) * 0.21);
     document.documentElement.style.setProperty('--orb-r', baseR + 'px');
+    seedBubbles();
   }
   window.addEventListener('resize', resize);
+
+  // ---------- Frozen bubbles inside the glass (like the real marble) ----------
+  let bubbles=[];
+  function seedBubbles(){
+    let s=42; const rnd=()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; };
+    bubbles=[];
+    const n=10;
+    for(let i=0;i<n;i++){
+      // random point inside a disk, biased toward centre
+      const a=rnd()*Math.PI*2, d=Math.sqrt(rnd())*0.72;
+      bubbles.push({ nx:Math.cos(a)*d, ny:Math.sin(a)*d, r:0.006+rnd()*0.02, ph:rnd()*6.28 });
+    }
+  }
   resize();
 
   // ---------- Audio (real microphone) ---------------------------------------
@@ -201,143 +210,170 @@
     analyser.getByteTimeDomainData(timeData);
     let sum=0;
     for(let i=0;i<timeData.length;i++){ const v=(timeData[i]-128)/128; sum+=v*v; }
-    const rms = Math.sqrt(sum/timeData.length);        // 0..~0.5 typical speech
-    return Math.min(1, rms*3.2);                        // scale to a usable 0..1
+    const rms = Math.sqrt(sum/timeData.length);
+    return Math.min(1, rms*3.2);
   }
 
   // ---------- Simulated "speaking" envelope ---------------------------------
-  // No real TTS in a prototype, so we synthesise a natural speech-like envelope:
-  // syllable bursts (~4-6 Hz) with random emphasis and occasional short pauses.
   let speakSeed = Math.random()*1000;
   function speakLevel(t){
-    const syl = 0.5 + 0.5*Math.sin(t*30 + Math.sin(t*7)*2);   // syllable rhythm
-    const emph = 0.55 + 0.45*Math.sin(t*3.3 + speakSeed);      // phrase emphasis
-    const pause = smoothPulse(t*0.55 + speakSeed*0.3);         // breathing pauses
+    const syl = 0.5 + 0.5*Math.sin(t*30 + Math.sin(t*7)*2);
+    const emph = 0.55 + 0.45*Math.sin(t*3.3 + speakSeed);
+    const pause = smoothPulse(t*0.55 + speakSeed*0.3);
     return Math.max(0, syl*emph*pause);
   }
-  // returns ~1 most of the time, dipping toward 0 for brief pauses
   function smoothPulse(x){
     const n = 0.5+0.5*Math.sin(x*6.28) + 0.3*Math.sin(x*15.1+1.7);
     return n > 0.35 ? 1 : Math.max(0.12, n/0.35);
   }
 
-  // ---------- Blob geometry --------------------------------------------------
-  function blobPath(r, amp, seedPhase, t, spin){
-    const pts = 150;
-    const path = new Path2D();
-    for(let i=0;i<=pts;i++){
-      const a = (i/pts)*Math.PI*2 + spin;
-      const w =
-        0.55*Math.sin(a*3 + t*0.7  + seedPhase) +
-        0.30*Math.sin(a*5 - t*1.05 + seedPhase*1.7) +
-        0.18*Math.sin(a*2 + t*0.45 + seedPhase*0.5) +
-        0.12*Math.sin(a*7 - t*1.4);
-      const rr = r * (1 + amp*w);
-      const x = cx + Math.cos(a)*rr;
-      const y = cy + Math.sin(a)*rr;
-      if(i===0) path.moveTo(x,y); else path.lineTo(x,y);
-    }
-    path.closePath();
-    return path;
-  }
+  // ---------- Helpers --------------------------------------------------------
+  const lerp=(a,b,k)=>a+(b-a)*k;
+  const rgba=(c,a)=>`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+  const mix=(c,d,k)=>[lerp(c[0],d[0],k),lerp(c[1],d[1],k),lerp(c[2],d[2],k)];
+  const WHITE=[255,255,255], INK=[8,10,26];
 
   // ---------- Render loop ----------------------------------------------------
-  let t0 = performance.now(), running=false;
-  function lerp(a,b,k){ return a + (b-a)*k; }
+  let t0=performance.now(), running=false, swirlPhase=0, lastNow=t0;
 
   function frame(now){
     if(!running) return;
-    const t = (now - t0)/1000;
-    const S = STATES[state];
+    const t=(now-t0)/1000;
+    const dt=Math.min(0.05,(now-lastNow)/1000); lastNow=now;
+    const S=STATES[state];
 
-    // ease colours & behaviour toward the active state
-    const k = 0.06;
-    P.r=lerp(P.r,S.cols[0][0],k); P.g=lerp(P.g,S.cols[0][1],k); P.b=lerp(P.b,S.cols[0][2],k);
-    P.glowR=lerp(P.glowR,S.glow[0],k); P.glowG=lerp(P.glowG,S.glow[1],k); P.glowB=lerp(P.glowB,S.glow[2],k);
-    P.breathe=lerp(P.breathe,S.breathe,k);
-    P.wobble=lerp(P.wobble,S.wobble,k);
-    P.spin=lerp(P.spin,S.spin,k);
+    // ease params toward the active state
+    const k=0.06;
+    for(let i=0;i<3;i++) P.inner[i]=mix(P.inner[i],S.inner[i],k);
+    P.swirl=lerp(P.swirl,S.swirl,k);
+    P.spread=lerp(P.spread,S.spread,k);
     P.drive=lerp(P.drive,S.drive,k);
 
-    // drive level: mic when listening, synth when speaking, else 0
+    // reactive level: mic (listening) / synth (speaking) / none
     let target=0;
-    if(state==='listening') target = micLevel();
-    else if(state==='speaking') target = speakLevel(t);
-    P.level = lerp(P.level, target, target>P.level?0.35:0.12); // fast attack, slow release
-    const drive = P.level * P.drive;
+    if(state==='listening') target=micLevel();
+    else if(state==='speaking') target=speakLevel(t);
+    P.level=lerp(P.level,target, target>P.level?0.35:0.12);
+    const drive=P.level*P.drive;
 
-    // reflect live activity on the wordmark dot
-    P.live = lerp(P.live, (state==='listening'&&micReady)||state==='speaking'?1:0, 0.05);
-    document.documentElement.style.setProperty('--live-col',
-      `rgb(${P.glowR|0},${P.glowG|0},${P.glowB|0})`);
+    swirlPhase += dt*P.swirl*(1+drive*0.8);
 
-    // clear
+    const prim=P.inner[0];
+    document.documentElement.style.setProperty('--live-col', rgba(prim,1));
+
     ctx.clearRect(0,0,W,H);
+    const R=baseR;                 // fixed radius — the marble holds its shape
 
-    const breath = 1 + Math.sin(t*1.1)*P.breathe;
-    const R = baseR * breath * (1 + drive*0.42);
-    const amp = P.wobble + drive*0.28;
-    const spin = t*P.spin;
+    // 1) ambient coloured halo cast by the glass
+    const halo=ctx.createRadialGradient(cx,cy,R*0.55, cx,cy,R*1.75);
+    halo.addColorStop(0, rgba(prim, 0.16+drive*0.20));
+    halo.addColorStop(1, rgba(prim, 0));
+    ctx.fillStyle=halo;
+    ctx.beginPath(); ctx.arc(cx,cy,R*1.75,0,Math.PI*2); ctx.fill();
 
-    // ---- outer glow ----
-    const glowR = R*(1.9 + drive*0.6);
-    const gGrad = ctx.createRadialGradient(cx,cy,R*0.2, cx,cy,glowR);
-    const ga = 0.20 + drive*0.28;
-    gGrad.addColorStop(0, `rgba(${P.glowR|0},${P.glowG|0},${P.glowB|0},${ga})`);
-    gGrad.addColorStop(1, `rgba(${P.glowR|0},${P.glowG|0},${P.glowB|0},0)`);
-    ctx.fillStyle=gGrad;
-    ctx.beginPath(); ctx.arc(cx,cy,glowR,0,Math.PI*2); ctx.fill();
+    // 2) contact shadow beneath
+    const sh=ctx.createRadialGradient(cx,cy+R*1.02,R*0.1, cx,cy+R*1.02,R*0.9);
+    sh.addColorStop(0,'rgba(0,0,0,0.38)'); sh.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=sh; ctx.beginPath(); ctx.ellipse(cx,cy+R*1.02,R*0.85,R*0.22,0,0,Math.PI*2); ctx.fill();
 
-    // ---- orb body (wobbling blob) ----
-    const body = blobPath(R, amp, 0, t, spin);
-    const bodyGrad = ctx.createRadialGradient(cx-R*0.3, cy-R*0.35, R*0.1, cx, cy, R*1.1);
-    bodyGrad.addColorStop(0, `rgba(${P.r|0},${P.g|0},${P.b|0},0.95)`);
-    bodyGrad.addColorStop(1, `rgba(${(P.r*0.5)|0},${(P.g*0.5)|0},${(P.b*0.65)|0},0.9)`);
-    ctx.fillStyle = bodyGrad;
-    ctx.fill(body);
-
-    // ---- inner flowing colour blobs (clipped to body) ----
+    // ================= INSIDE THE GLASS (clipped to circle) ==================
     ctx.save();
-    ctx.clip(body);
-    ctx.globalCompositeOperation = 'lighter';
-    const cols = S.cols;
-    for(let i=0;i<3;i++){
-      const ph = i*2.1;
-      const ox = Math.cos(t*(0.35+i*0.16)+ph) * R*(0.42+drive*0.18);
-      const oy = Math.sin(t*(0.30+i*0.19)+ph*1.3) * R*(0.42+drive*0.18);
-      const rr = R*(0.85 - i*0.12);
-      const c = cols[i%cols.length];
-      const bg = ctx.createRadialGradient(cx+ox, cy+oy, 0, cx+ox, cy+oy, rr);
-      bg.addColorStop(0, `rgba(${c[0]},${c[1]},${c[2]},${0.55})`);
-      bg.addColorStop(1, `rgba(${c[0]},${c[1]},${c[2]},0)`);
-      ctx.fillStyle = bg;
-      ctx.beginPath(); ctx.arc(cx+ox, cy+oy, rr, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.clip();
+
+    // 2a) glass body volume — deep tint at the rim, luminous toward the light
+    const lx=cx-R*0.28, ly=cy-R*0.32;
+    const glassLight=mix(prim,WHITE,0.55), glassMid=mix(prim,INK,0.35), glassDeep=mix(prim,INK,0.72);
+    const body=ctx.createRadialGradient(lx,ly,R*0.05, cx,cy,R*1.15);
+    body.addColorStop(0, rgba(glassLight,1));
+    body.addColorStop(0.45, rgba(glassMid,1));
+    body.addColorStop(1, rgba(glassDeep,1));
+    ctx.fillStyle=body; ctx.fillRect(cx-R,cy-R,2*R,2*R);
+
+    // 2b) internal colour shapes — the pattern that swirls & reacts
+    ctx.globalCompositeOperation='screen';
+    const N=5;
+    for(let i=0;i<N;i++){
+      const ang=swirlPhase*(1+i*0.15) + i*(Math.PI*2/N);
+      const orbit=R*(P.spread*(0.5+i*0.14) )*(1+drive*0.35);
+      const wob=Math.sin(t*(0.6+i*0.3)+i);
+      const x=cx+Math.cos(ang)*orbit;
+      const y=cy+Math.sin(ang*1.08+wob*0.4)*orbit*0.9;
+      const rad=R*(0.60-i*0.07)*(1+drive*0.30);
+      const c=P.inner[i%3];
+      const g=ctx.createRadialGradient(x,y,0,x,y,rad);
+      g.addColorStop(0, rgba(mix(c,WHITE,0.15), 0.55+drive*0.18));
+      g.addColorStop(0.6, rgba(c, 0.22));
+      g.addColorStop(1, rgba(c,0));
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2); ctx.fill();
     }
-    // top sheen
-    const sheen = ctx.createRadialGradient(cx-R*0.35, cy-R*0.5, 0, cx-R*0.35, cy-R*0.5, R*0.9);
-    sheen.addColorStop(0,'rgba(255,255,255,0.30)');
-    sheen.addColorStop(0.4,'rgba(255,255,255,0.05)');
-    sheen.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle = sheen;
-    ctx.beginPath(); ctx.arc(cx-R*0.35, cy-R*0.5, R*0.9, 0, Math.PI*2); ctx.fill();
+
+    // 2c) refracted light ribbon curving through the glass
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.rotate(Math.sin(t*0.25)*0.5 + swirlPhase*0.15);
+    const rib=ctx.createLinearGradient(-R,0,R,0);
+    const ribC=mix(prim,WHITE,0.7);
+    rib.addColorStop(0, rgba(ribC,0)); rib.addColorStop(0.5, rgba(ribC,0.42+drive*0.2)); rib.addColorStop(1, rgba(ribC,0));
+    ctx.fillStyle=rib;
+    ctx.beginPath(); ctx.ellipse(0, R*0.12, R*0.92, R*0.16, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    ctx.globalCompositeOperation='source-over';
+
+    // 2d) frozen bubbles
+    for(const b of bubbles){
+      const x=cx+b.nx*R, y=cy+b.ny*R, r=b.r*R*(1+0.06*Math.sin(t*2+b.ph));
+      const bg=ctx.createRadialGradient(x-r*0.3,y-r*0.3,0,x,y,r);
+      bg.addColorStop(0,'rgba(255,255,255,0.9)');
+      bg.addColorStop(0.4,'rgba(255,255,255,0.15)');
+      bg.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=bg; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(20,30,60,0.35)'; ctx.lineWidth=Math.max(0.5,r*0.18);
+      ctx.beginPath(); ctx.arc(x,y+r*0.15,r*0.9,0.15,Math.PI-0.15); ctx.stroke();
+    }
+
+    // 2e) inner rim darkening — gives glass thickness / depth
+    const inrim=ctx.createRadialGradient(cx,cy,R*0.62, cx,cy,R);
+    inrim.addColorStop(0,'rgba(0,0,20,0)');
+    inrim.addColorStop(0.82,'rgba(0,0,25,0.05)');
+    inrim.addColorStop(1, rgba(glassDeep,0.85));
+    ctx.fillStyle=inrim; ctx.fillRect(cx-R,cy-R,2*R,2*R);
+
+    // 2f) big soft glass reflection (top-left)
+    ctx.globalCompositeOperation='lighter';
+    ctx.save();
+    ctx.translate(cx-R*0.34, cy-R*0.40); ctx.rotate(-0.6);
+    const hl=ctx.createRadialGradient(0,0,0,0,0,R*0.62);
+    hl.addColorStop(0,'rgba(255,255,255,0.55)');
+    hl.addColorStop(0.5,'rgba(255,255,255,0.10)');
+    hl.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=hl; ctx.beginPath(); ctx.ellipse(0,0,R*0.42,R*0.62,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    ctx.globalCompositeOperation='source-over';
+
+    ctx.restore(); // ============ end clip ============
+
+    // 3) crisp specular hot-spot (sits on the glass surface)
+    const spx=cx-R*0.40, spy=cy-R*0.46;
+    const spec=ctx.createRadialGradient(spx,spy,0,spx,spy,R*0.14);
+    spec.addColorStop(0,'rgba(255,255,255,0.95)');
+    spec.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=spec; ctx.beginPath(); ctx.arc(spx,spy,R*0.14,0,Math.PI*2); ctx.fill();
+
+    // 4) bottom-right rim light (light wrapping the sphere)
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.clip();
+    const rimx=cx+R*0.5, rimy=cy+R*0.55;
+    const rl=ctx.createRadialGradient(rimx,rimy,R*0.5, rimx,rimy,R*0.98);
+    rl.addColorStop(0,'rgba(255,255,255,0)');
+    rl.addColorStop(0.75, rgba(mix(prim,WHITE,0.6),0.0));
+    rl.addColorStop(1, rgba(mix(prim,WHITE,0.75),0.55));
+    ctx.fillStyle=rl; ctx.fillRect(cx-R,cy-R,2*R,2*R);
     ctx.restore();
 
-    // ---- thinking: orbiting satellites for a distinct 'processing' read ----
-    if(P.spin > 0.3){
-      const strength = Math.min(1, (P.spin-0.3)/0.25);
-      ctx.globalCompositeOperation='lighter';
-      for(let i=0;i<3;i++){
-        const a = t*1.6 + i*(Math.PI*2/3);
-        const orbR = R*1.28;
-        const x=cx+Math.cos(a)*orbR, y=cy+Math.sin(a)*orbR;
-        const d = 4 + 3*Math.sin(t*4+i);
-        const gg=ctx.createRadialGradient(x,y,0,x,y,d*3);
-        gg.addColorStop(0,`rgba(${P.glowR|0},${P.glowG|0},${P.glowB|0},${0.9*strength})`);
-        gg.addColorStop(1,`rgba(${P.glowR|0},${P.glowG|0},${P.glowB|0},0)`);
-        ctx.fillStyle=gg; ctx.beginPath(); ctx.arc(x,y,d*3,0,Math.PI*2); ctx.fill();
-      }
-      ctx.globalCompositeOperation='source-over';
-    }
+    // 5) thin bright fresnel edge
+    ctx.lineWidth=Math.max(1,R*0.015);
+    ctx.strokeStyle=rgba(mix(prim,WHITE,0.75),0.45);
+    ctx.beginPath(); ctx.arc(cx,cy,R-ctx.lineWidth*0.5,0,Math.PI*2); ctx.stroke();
 
     requestAnimationFrame(frame);
   }
@@ -348,30 +384,29 @@
   const segs=[...document.querySelectorAll('.seg')];
 
   async function setState(next){
-    state = next;
-    const S = STATES[next];
-    stateLabel.textContent = S.name;
-    stateHint.textContent = S.hint;
+    state=next;
+    const S=STATES[next];
+    stateLabel.textContent=S.name;
+    stateHint.textContent=S.hint;
     segs.forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.state===next)));
-    if(next==='speaking') speakSeed = Math.random()*1000; // fresh phrasing each time
+    if(next==='speaking') speakSeed=Math.random()*1000;
     if(next==='listening'){
-      const ok = await enableMic();
+      const ok=await enableMic();
       if(ok && audioCtx && audioCtx.state==='suspended') audioCtx.resume();
-      if(!ok) stateHint.textContent = micLabel.textContent;
+      if(!ok) stateHint.textContent=micLabel.textContent;
     }
   }
-  segs.forEach(b=> b.addEventListener('click', ()=> setState(b.dataset.state)));
+  segs.forEach(b=>b.addEventListener('click',()=>setState(b.dataset.state)));
 
-  // ---------- Start gate (needed for audio/motion permission on mobile) ------
+  // ---------- Start gate -----------------------------------------------------
   const gate=document.getElementById('gate');
-  document.getElementById('gateBtn').addEventListener('click', ()=>{
+  document.getElementById('gateBtn').addEventListener('click',()=>{
     gate.style.display='none';
-    running=true; t0=performance.now();
+    running=true; t0=performance.now(); lastNow=t0;
     requestAnimationFrame(frame);
   });
 
-  // keyboard shortcuts 1-4
-  window.addEventListener('keydown', e=>{
+  window.addEventListener('keydown',e=>{
     const map={'1':'idle','2':'listening','3':'thinking','4':'speaking'};
     if(map[e.key]) setState(map[e.key]);
   });
