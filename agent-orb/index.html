@@ -8,105 +8,66 @@
 <title>Resonance · Agent Orb — a listening AI voice visualiser</title>
 <style>
   :root {
-    /* ---- Brand-themeable tokens ---- */
-    --bg-0:   #05060a;
-    --ink:    #e7e9f5;
-    --ink-dim:#8b8fb0;
-    --ink-faint:#4a4d68;
-    --panel:  rgba(18, 20, 34, 0.55);
-    --panel-brd: rgba(140, 150, 210, 0.16);
-    --chip:   rgba(255,255,255,0.05);
-    --chip-brd: rgba(255,255,255,0.09);
-    --focus:  #8ea2ff;
+    --bg-0:#05060a; --ink:#e7e9f5; --ink-dim:#8b8fb0; --ink-faint:#4a4d68;
+    --panel:rgba(18,20,34,0.55); --panel-brd:rgba(140,150,210,0.16);
+    --chip:rgba(255,255,255,0.05); --chip-brd:rgba(255,255,255,0.09); --focus:#8ea2ff;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
   body {
     background:
       radial-gradient(120% 90% at 50% 30%, rgba(60,70,150,0.08) 0%, rgba(10,12,24,0) 55%),
       radial-gradient(140% 130% at 50% 120%, #0a0c18 0%, var(--bg-0) 60%),
       var(--bg-0);
-    color: var(--ink);
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    overflow: hidden;
-    -webkit-font-smoothing: antialiased;
-    -webkit-tap-highlight-color: transparent;
+    color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    overflow:hidden; -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent;
   }
-  canvas#orb { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; }
-
-  .hud { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
-
-  .wordmark { position: absolute; top: clamp(20px,4vw,40px); left: clamp(20px,5vw,44px); }
-  .wordmark h1 { font-size: clamp(18px,2.4vw,26px); font-weight: 800; letter-spacing: -0.03em; line-height: 1; display: flex; align-items: center; gap: 0.5ch; }
-  .wordmark h1 .dot { width: 0.38em; height: 0.38em; border-radius: 50%; background: var(--live-col, #8ea2ff); box-shadow: 0 0 12px var(--live-col, #8ea2ff); transition: background .4s, box-shadow .4s; }
-  .wordmark p { margin-top: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-dim); }
-
-  .status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, calc(-50% + var(--orb-r, 150px) + 46px)); text-align: center; transition: transform .3s; }
-  .status .state { font-size: clamp(20px,3.4vw,30px); font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
-  .status .hint { margin-top: 10px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); min-height: 1em; }
-
-  .console { position: absolute; left: 50%; bottom: clamp(22px, 5vh, 46px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 16px; pointer-events: auto; width: min(560px, 92vw); }
-  .segmented { display: flex; gap: 6px; padding: 6px; border-radius: 18px; background: var(--panel); border: 1px solid var(--panel-brd); backdrop-filter: blur(20px) saturate(1.3); -webkit-backdrop-filter: blur(20px) saturate(1.3); width: 100%; }
-  .seg { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 4px 9px; border-radius: 13px; background: transparent; border: 1px solid transparent; color: var(--ink-dim); font-family: inherit; font-size: 12px; font-weight: 600; letter-spacing: -0.01em; cursor: pointer; transition: background .18s, color .18s, border-color .18s; }
-  .seg .ic { width: 20px; height: 20px; flex: none; }
-  .seg .ic path, .seg .ic line, .seg .ic circle, .seg .ic rect { stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; fill: none; }
-  .seg:hover { color: var(--ink); }
-  .seg[aria-pressed="true"] { background: var(--chip); border-color: var(--chip-brd); color: var(--ink); }
-  .seg:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-
-  .microw { display: flex; align-items: center; gap: 12px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: 0.06em; color: var(--ink-dim); }
-  .micdot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); transition: background .3s, box-shadow .3s; }
-  .micdot.on { background: #62e4a8; box-shadow: 0 0 10px #62e4a8; }
-  .micdot.err { background: #ff6b7d; box-shadow: 0 0 10px #ff6b7d; }
-
-  .gate { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(5,6,10,0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); pointer-events: auto; }
-  .gate button { pointer-events: auto; padding: 16px 30px; border-radius: 16px; background: var(--panel); border: 1px solid var(--panel-brd); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); color: var(--ink); font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; cursor: pointer; display: flex; align-items: center; gap: 10px; }
-  .gate button .ic { width: 20px; height: 20px; }
-  .gate button .ic path { stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; fill: none; }
-  .gate small { display: block; font-family: ui-monospace, Menlo, monospace; font-weight: 500; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); margin-top: 4px; }
-
-  @media (max-width: 480px) {
-    .seg .lbl { font-size: 11px; }
-    .wordmark p { display: none; }
-  }
+  canvas#orb { position:fixed; inset:0; width:100%; height:100%; display:block; z-index:1; }
+  .hud { position:fixed; inset:0; pointer-events:none; z-index:3; }
+  .wordmark { position:absolute; top:clamp(20px,4vw,40px); left:clamp(20px,5vw,44px); }
+  .wordmark h1 { font-size:clamp(18px,2.4vw,26px); font-weight:800; letter-spacing:-0.03em; line-height:1; display:flex; align-items:center; gap:0.5ch; }
+  .wordmark h1 .dot { width:0.38em; height:0.38em; border-radius:50%; background:var(--live-col,#8ea2ff); box-shadow:0 0 12px var(--live-col,#8ea2ff); transition:background .4s, box-shadow .4s; }
+  .wordmark p { margin-top:8px; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:var(--ink-dim); }
+  .status { position:absolute; left:50%; top:50%; transform:translate(-50%,calc(-50% + var(--orb-r,150px) + 46px)); text-align:center; transition:transform .3s; }
+  .status .state { font-size:clamp(20px,3.4vw,30px); font-weight:700; letter-spacing:-0.02em; line-height:1; }
+  .status .hint { margin-top:10px; font-family:ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-dim); min-height:1em; }
+  .console { position:absolute; left:50%; bottom:clamp(22px,5vh,46px); transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:16px; pointer-events:auto; width:min(560px,92vw); }
+  .segmented { display:flex; gap:6px; padding:6px; border-radius:18px; background:var(--panel); border:1px solid var(--panel-brd); backdrop-filter:blur(20px) saturate(1.3); -webkit-backdrop-filter:blur(20px) saturate(1.3); width:100%; }
+  .seg { flex:1 1 0; display:flex; flex-direction:column; align-items:center; gap:5px; padding:11px 4px 9px; border-radius:13px; background:transparent; border:1px solid transparent; color:var(--ink-dim); font-family:inherit; font-size:12px; font-weight:600; letter-spacing:-0.01em; cursor:pointer; transition:background .18s,color .18s,border-color .18s; }
+  .seg .ic { width:20px; height:20px; flex:none; }
+  .seg .ic path, .seg .ic line, .seg .ic circle, .seg .ic rect { stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; fill:none; }
+  .seg:hover { color:var(--ink); }
+  .seg[aria-pressed="true"] { background:var(--chip); border-color:var(--chip-brd); color:var(--ink); }
+  .seg:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+  .microw { display:flex; align-items:center; gap:12px; font-family:ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:0.06em; color:var(--ink-dim); }
+  .micdot { width:8px; height:8px; border-radius:50%; background:var(--ink-faint); transition:background .3s,box-shadow .3s; }
+  .micdot.on { background:#62e4a8; box-shadow:0 0 10px #62e4a8; }
+  .micdot.err { background:#ff6b7d; box-shadow:0 0 10px #ff6b7d; }
+  .gate { position:fixed; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; background:rgba(5,6,10,0.4); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); pointer-events:auto; }
+  .gate button { pointer-events:auto; padding:16px 30px; border-radius:16px; background:var(--panel); border:1px solid var(--panel-brd); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); color:var(--ink); font-family:inherit; font-size:15px; font-weight:700; letter-spacing:-0.01em; cursor:pointer; display:flex; align-items:center; gap:10px; }
+  .gate button .ic { width:20px; height:20px; }
+  .gate button .ic path { stroke:currentColor; stroke-width:1.7; stroke-linecap:round; fill:none; }
+  .gate small { display:block; font-family:ui-monospace,Menlo,monospace; font-weight:500; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-dim); margin-top:4px; }
+  @media (max-width:480px){ .seg .lbl{font-size:11px;} .wordmark p{display:none;} }
 </style>
 
 <canvas id="orb"></canvas>
 
 <div class="hud">
-  <div class="wordmark">
-    <h1><span class="dot"></span> Agent</h1>
-    <p>Voice visualiser</p>
-  </div>
-
-  <div class="status">
-    <div class="state" id="stateLabel">Idle</div>
-    <div class="hint" id="stateHint">Tap a state below</div>
-  </div>
-
+  <div class="wordmark"><h1><span class="dot"></span> Agent</h1><p>Voice visualiser</p></div>
+  <div class="status"><div class="state" id="stateLabel">Idle</div><div class="hint" id="stateHint">Tap a state below</div></div>
   <div class="console">
     <div class="segmented" role="group" aria-label="Agent state">
       <button class="seg" data-state="idle" aria-pressed="true">
-        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg>
-        <span class="lbl">Idle</span>
-      </button>
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg><span class="lbl">Idle</span></button>
       <button class="seg" data-state="listening" aria-pressed="false">
-        <svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        <span class="lbl">Listening</span>
-      </button>
+        <svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span class="lbl">Listening</span></button>
       <button class="seg" data-state="thinking" aria-pressed="false">
-        <svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg>
-        <span class="lbl">Thinking</span>
-      </button>
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg><span class="lbl">Thinking</span></button>
       <button class="seg" data-state="speaking" aria-pressed="false">
-        <svg class="ic" viewBox="0 0 24 24"><line x1="5" y1="9" x2="5" y2="15"/><line x1="9.5" y1="5" x2="9.5" y2="19"/><line x1="14.5" y1="7" x2="14.5" y2="17"/><line x1="19" y1="10" x2="19" y2="14"/></svg>
-        <span class="lbl">Speaking</span>
-      </button>
+        <svg class="ic" viewBox="0 0 24 24"><line x1="5" y1="9" x2="5" y2="15"/><line x1="9.5" y1="5" x2="9.5" y2="19"/><line x1="14.5" y1="7" x2="14.5" y2="17"/><line x1="19" y1="10" x2="19" y2="14"/></svg><span class="lbl">Speaking</span></button>
     </div>
-    <div class="microw">
-      <span class="micdot" id="micDot"></span>
-      <span id="micLabel">Microphone off · used only in Listening</span>
-    </div>
+    <div class="microw"><span class="micdot" id="micDot"></span><span id="micLabel">Microphone off · used only in Listening</span></div>
   </div>
 </div>
 
@@ -117,90 +78,164 @@
   </button>
 </div>
 
+<script id="vert" type="x-shader/x-vertex">
+attribute vec2 aPos;
+void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }
+</script>
+
+<script id="frag" type="x-shader/x-fragment">
+precision highp float;
+uniform vec2  uCenter;   // marble centre, device px, y from bottom
+uniform float uRadius;   // marble radius, device px
+uniform float uTime;
+uniform vec3  uColor;    // primary colour 0..1
+uniform float uSwirl;    // swirl speed
+uniform float uDrive;    // 0..1 audio energy
+
+float hash(vec3 p){ p=fract(p*0.3183099+0.1); p*=17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+float noise(vec3 x){
+  vec3 i=floor(x), f=fract(x); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(hash(i+vec3(0,0,0)),hash(i+vec3(1,0,0)),f.x),
+                 mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),
+                 mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);
+}
+float fbm(vec3 p){ float a=0.5,s=0.0; for(int i=0;i<4;i++){ s+=a*noise(p); p*=2.03; a*=0.5;} return s; }
+
+void main(){
+  vec2 d = (gl_FragCoord.xy - uCenter)/uRadius;   // 0 at centre, 1 at rim
+  float rr = length(d);
+  vec3 col = vec3(0.0);
+  float alpha = 0.0;
+
+  if(rr < 1.06){
+    // ---- sphere geometry ----
+    float rc = min(rr, 1.0);
+    float z = sqrt(max(0.0, 1.0 - rc*rc));
+    vec3 N = normalize(vec3(d, z));
+    vec3 V = vec3(0.0, 0.0, 1.0);
+    vec3 L = normalize(vec3(-0.55, 0.62, 0.72));
+
+    // ---- swirling pigment inside the glass (refracted sample of a warped noise field) ----
+    vec3 rdir = refract(-V, N, 0.66);                    // into the glass
+    float tt = uTime*(0.12 + uSwirl*0.22)*(1.0 + uDrive*0.9);
+    vec3 p = vec3(d*1.25, z*0.55) + rdir*0.55 + vec3(0.0,0.0,tt);
+    vec3 q = p*2.1;
+    vec2 w = vec2(fbm(q+2.3), fbm(q+7.9));               // domain warp -> organic swirl
+    float n = fbm(q + vec3(w-0.5,0.0)*(2.4+uDrive*1.6));
+    n = clamp(n, 0.0, 1.0);
+
+    // colour ramp: deep -> saturated -> bright  (hard internal contrast)
+    vec3 deep   = uColor*0.08;
+    vec3 midc   = uColor;
+    vec3 bright = mix(uColor, vec3(1.0), 0.82);
+    vec3 ic = mix(deep, midc, smoothstep(0.28, 0.56, n));
+    ic = mix(ic, bright, smoothstep(0.64, 0.94, n));
+
+    // ---- form lighting: severe light/dark like real glass ----
+    float diff = clamp(dot(N, L), 0.0, 1.0);
+    col = ic * (0.10 + 1.05*diff);
+    col *= mix(1.0, 0.30, smoothstep(0.55, 1.0, rc));    // deepen toward the rim
+
+    // ---- sharp specular hot-spot ----
+    vec3 H = normalize(L + V);
+    float sp = pow(max(dot(N,H),0.0), 140.0)*1.4 + pow(max(dot(N,H),0.0), 26.0)*0.22;
+    col += vec3(sp);
+
+    // ---- fresnel rim light ----
+    float fres = pow(1.0 - max(dot(N,V),0.0), 3.0);
+    col += mix(uColor, vec3(1.0), 0.7) * fres * 0.75;
+
+    // ---- bright refractive lens near the bottom ----
+    float lens = smoothstep(0.72, 0.0, length(d - vec2(0.0, 0.42)));
+    col += mix(uColor, vec3(1.0), 0.5) * lens * (0.35 + uDrive*0.4) * z;
+
+    float aa = smoothstep(1.0, 1.0 - 2.5/uRadius, rr);
+    alpha = aa;
+    col *= aa;
+  }
+
+  // ---- coloured halo cast outside the glass ----
+  float halo = exp(-max(rr - 1.0, 0.0) * 3.2) * (0.16 + uDrive*0.22);
+  vec3 haloCol = mix(uColor, vec3(1.0), 0.15);
+  vec3 outCol = mix(haloCol, col, alpha);
+  float outA  = max(alpha, halo);
+  gl_FragColor = vec4(outCol, outA);
+}
+</script>
+
 <script>
 (() => {
   "use strict";
   const canvas = document.getElementById('orb');
-  const ctx = canvas.getContext('2d', { alpha: true });
+  const gl = canvas.getContext('webgl', { alpha:true, premultipliedAlpha:false, antialias:true });
 
-  // ---------- States: each defines the INTERNAL colour pattern + behaviour ----
-  // The glass sphere itself never changes shape — only the pattern inside reacts.
-  // inner = [saturated core, mid tone, bright near-white accent] for in-glass contrast
+  // ---------- States (colour + behaviour of the inner pattern) ----------
   const STATES = {
-    idle:      { name:'Idle',      hint:'Waiting for you',
-                 inner:[[5,55,255],[80,140,255],[190,225,255]],
-                 swirl:0.16, spread:0.36, drive:0.0 },
-    listening: { name:'Listening', hint:'Speak — the pattern reacts to your voice',
-                 inner:[[0,165,255],[70,215,255],[200,245,255]],
-                 swirl:0.32, spread:0.42, drive:1.0 },
-    thinking:  { name:'Thinking',  hint:'Processing',
-                 inner:[[150,40,255],[200,90,255],[225,180,255]],
-                 swirl:1.05, spread:0.32, drive:0.0 },
-    speaking:  { name:'Speaking',  hint:'Agent is responding',
-                 inner:[[0,220,160],[70,235,215],[200,255,235]],
-                 swirl:0.44, spread:0.40, drive:0.85 }
+    idle:      { name:'Idle',      hint:'Waiting for you',                          col:[5,55,255],    swirl:0.16, drive:0.0 },
+    listening: { name:'Listening', hint:'Speak — the pattern reacts to your voice', col:[0,165,255],   swirl:0.34, drive:1.0 },
+    thinking:  { name:'Thinking',  hint:'Processing',                               col:[150,40,255],  swirl:1.05, drive:0.0 },
+    speaking:  { name:'Speaking',  hint:'Agent is responding',                      col:[0,220,160],   swirl:0.46, drive:0.85 }
+  };
+  let state='idle';
+  const P = { col:[5,55,255], swirl:0.16, drive:0, level:0 };
+  const lerp=(a,b,k)=>a+(b-a)*k;
+
+  // ---------- WebGL setup ----------
+  function compile(type, src){
+    const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  const prog=gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, document.getElementById('vert').textContent));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, document.getElementById('frag').textContent));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const aPos=gl.getAttribLocation(prog,'aPos'); gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,0,0);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  const U = {
+    center:gl.getUniformLocation(prog,'uCenter'),
+    radius:gl.getUniformLocation(prog,'uRadius'),
+    time:gl.getUniformLocation(prog,'uTime'),
+    color:gl.getUniformLocation(prog,'uColor'),
+    swirl:gl.getUniformLocation(prog,'uSwirl'),
+    drive:gl.getUniformLocation(prog,'uDrive')
   };
 
-  let state = 'idle';
-  // Eased parameters for smooth transitions between states
-  const P = {
-    inner:[[5,55,255],[80,140,255],[190,225,255]],
-    swirl:0.16, spread:0.36, drive:0, level:0
-  };
-
-  // ---------- Sizing ---------------------------------------------------------
-  let W=0, H=0, cx=0, cy=0, baseR=0, dpr=1;
+  // ---------- Sizing ----------
+  let dpr=1, cxDev=0, cyDev=0, radDev=0;
   function resize(){
-    dpr = Math.min(window.devicePixelRatio||1, 2.5);
-    W = window.innerWidth; H = window.innerHeight;
-    canvas.width = Math.round(W*dpr); canvas.height = Math.round(H*dpr);
-    canvas.style.width = W+'px'; canvas.style.height = H+'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    cx = W/2; cy = H/2 - Math.min(H*0.06, 40);
-    baseR = Math.max(70, Math.min(W, H) * 0.21);
-    document.documentElement.style.setProperty('--orb-r', baseR + 'px');
-    seedBubbles();
+    dpr=Math.min(window.devicePixelRatio||1, 2);
+    const W=window.innerWidth, H=window.innerHeight;
+    canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    gl.viewport(0,0,canvas.width,canvas.height);
+    const cx=W/2, cy=H/2 - Math.min(H*0.06,40);
+    const baseR=Math.max(70, Math.min(W,H)*0.21);
+    cxDev=cx*dpr; cyDev=canvas.height - cy*dpr; radDev=baseR*dpr;
+    document.documentElement.style.setProperty('--orb-r', baseR+'px');
   }
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', resize); resize();
 
-  // ---------- Frozen bubbles inside the glass (like the real marble) ----------
-  let bubbles=[];
-  function seedBubbles(){
-    let s=42; const rnd=()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; };
-    bubbles=[];
-    const n=10;
-    for(let i=0;i<n;i++){
-      // random point inside a disk, biased toward centre
-      const a=rnd()*Math.PI*2, d=Math.sqrt(rnd())*0.72;
-      bubbles.push({ nx:Math.cos(a)*d, ny:Math.sin(a)*d, r:0.006+rnd()*0.02, ph:rnd()*6.28 });
-    }
-  }
-  resize();
-
-  // ---------- Audio (real microphone) ---------------------------------------
+  // ---------- Audio (real microphone) ----------
   let audioCtx=null, analyser=null, timeData=null, micReady=false, micStream=null;
   const micDot=document.getElementById('micDot'), micLabel=document.getElementById('micLabel');
-
   async function enableMic(){
-    if (micReady) return true;
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true }
-      });
-      audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-      const src = audioCtx.createMediaStreamSource(micStream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 1024;
-      analyser.smoothingTimeConstant = 0.82;
-      src.connect(analyser);
-      timeData = new Uint8Array(analyser.fftSize);
-      micReady = true;
-      micDot.classList.add('on'); micDot.classList.remove('err');
-      micLabel.textContent = 'Microphone live';
+    if(micReady) return true;
+    try{
+      micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const src=audioCtx.createMediaStreamSource(micStream);
+      analyser=audioCtx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0.82;
+      src.connect(analyser); timeData=new Uint8Array(analyser.fftSize); micReady=true;
+      micDot.classList.add('on'); micDot.classList.remove('err'); micLabel.textContent='Microphone live';
       return true;
-    } catch(err){
+    }catch(err){
       micDot.classList.add('err');
-      micLabel.textContent = (location.protocol==='https:'||location.hostname==='localhost')
+      micLabel.textContent=(location.protocol==='https:'||location.hostname==='localhost')
         ? 'Microphone blocked — allow access to react to voice'
         : 'Microphone needs https — open the hosted link';
       return false;
@@ -209,215 +244,55 @@
   function micLevel(){
     if(!micReady||!analyser) return 0;
     analyser.getByteTimeDomainData(timeData);
-    let sum=0;
-    for(let i=0;i<timeData.length;i++){ const v=(timeData[i]-128)/128; sum+=v*v; }
-    const rms = Math.sqrt(sum/timeData.length);
-    return Math.min(1, rms*3.2);
+    let sum=0; for(let i=0;i<timeData.length;i++){const v=(timeData[i]-128)/128; sum+=v*v;}
+    return Math.min(1, Math.sqrt(sum/timeData.length)*3.2);
   }
 
-  // ---------- Simulated "speaking" envelope ---------------------------------
-  let speakSeed = Math.random()*1000;
+  // ---------- Simulated speaking envelope ----------
+  let speakSeed=Math.random()*1000;
   function speakLevel(t){
-    const syl = 0.5 + 0.5*Math.sin(t*30 + Math.sin(t*7)*2);
-    const emph = 0.55 + 0.45*Math.sin(t*3.3 + speakSeed);
-    const pause = smoothPulse(t*0.55 + speakSeed*0.3);
+    const syl=0.5+0.5*Math.sin(t*30+Math.sin(t*7)*2);
+    const emph=0.55+0.45*Math.sin(t*3.3+speakSeed);
+    const n=0.5+0.5*Math.sin((t*0.55+speakSeed*0.3)*6.28)+0.3*Math.sin((t*0.55)*15.1+1.7);
+    const pause=n>0.35?1:Math.max(0.12,n/0.35);
     return Math.max(0, syl*emph*pause);
   }
-  function smoothPulse(x){
-    const n = 0.5+0.5*Math.sin(x*6.28) + 0.3*Math.sin(x*15.1+1.7);
-    return n > 0.35 ? 1 : Math.max(0.12, n/0.35);
-  }
 
-  // ---------- Helpers --------------------------------------------------------
-  const lerp=(a,b,k)=>a+(b-a)*k;
-  const rgba=(c,a)=>`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
-  const mix=(c,d,k)=>[lerp(c[0],d[0],k),lerp(c[1],d[1],k),lerp(c[2],d[2],k)];
-  const WHITE=[255,255,255], INK=[8,10,26];
-
-  // A curved tapering ribbon of colour (a "swish") drawn as a chain of soft dots
-  // that spiral out from the centre — the twisting vane inside the marble.
-  function drawSwish(baseAngle, sweep, len, wid, colCore, colEdge, alpha){
-    const steps=16;
-    for(let s=0;s<=steps;s++){
-      const f=s/steps;
-      const rr=f*len;
-      const a=baseAngle + sweep*f;
-      const x=cx+Math.cos(a)*rr, y=cy+Math.sin(a)*rr;
-      const bell=Math.sin(Math.PI*Math.min(1,f*1.04));   // thin at ends, fat in middle
-      const rad=wid*(0.35+bell);
-      const col=mix(colCore,colEdge,f);
-      const g=ctx.createRadialGradient(x,y,0,x,y,rad);
-      g.addColorStop(0, rgba(col, alpha*(0.45+0.55*bell)));
-      g.addColorStop(1, rgba(col,0));
-      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2); ctx.fill();
-    }
-  }
-
-  // ---------- Render loop ----------------------------------------------------
-  let t0=performance.now(), running=false, swirlPhase=0, lastNow=t0;
-
+  // ---------- Render loop ----------
+  let t0=performance.now(), running=false;
   function frame(now){
     if(!running) return;
     const t=(now-t0)/1000;
-    const dt=Math.min(0.05,(now-lastNow)/1000); lastNow=now;
-    const S=STATES[state];
-
-    // ease params toward the active state
-    const k=0.06;
-    for(let i=0;i<3;i++) P.inner[i]=mix(P.inner[i],S.inner[i],k);
+    const S=STATES[state], k=0.06;
+    for(let i=0;i<3;i++) P.col[i]=lerp(P.col[i],S.col[i],k);
     P.swirl=lerp(P.swirl,S.swirl,k);
-    P.spread=lerp(P.spread,S.spread,k);
     P.drive=lerp(P.drive,S.drive,k);
-
-    // reactive level: mic (listening) / synth (speaking) / none
     let target=0;
     if(state==='listening') target=micLevel();
     else if(state==='speaking') target=speakLevel(t);
     P.level=lerp(P.level,target, target>P.level?0.35:0.12);
     const drive=P.level*P.drive;
 
-    swirlPhase += dt*P.swirl*(1+drive*0.8);
+    document.documentElement.style.setProperty('--live-col',
+      `rgb(${P.col[0]|0},${P.col[1]|0},${P.col[2]|0})`);
 
-    const prim=P.inner[0];
-    document.documentElement.style.setProperty('--live-col', rgba(prim,1));
-
-    ctx.clearRect(0,0,W,H);
-    const R=baseR;                 // fixed radius — the marble holds its shape
-
-    // palette derived from the eased primary colour
-    const milky   = mix(prim, WHITE, 0.55);
-    const bodyLit = mix(prim, WHITE, 0.28);
-    const bodyDeep= mix(prim, INK, 0.55);
-    const rimDark = mix(prim, INK, 0.82);
-
-    // 1) ambient coloured halo cast by the glass
-    const halo=ctx.createRadialGradient(cx,cy,R*0.55, cx,cy,R*1.8);
-    halo.addColorStop(0, rgba(prim, 0.18+drive*0.20));
-    halo.addColorStop(1, rgba(prim, 0));
-    ctx.fillStyle=halo;
-    ctx.beginPath(); ctx.arc(cx,cy,R*1.8,0,Math.PI*2); ctx.fill();
-
-    // 2) contact shadow beneath
-    const sh=ctx.createRadialGradient(cx,cy+R*1.04,R*0.1, cx,cy+R*1.04,R*0.9);
-    sh.addColorStop(0,'rgba(0,0,0,0.42)'); sh.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=sh; ctx.beginPath(); ctx.ellipse(cx,cy+R*1.04,R*0.82,R*0.2,0,0,Math.PI*2); ctx.fill();
-
-    // ================= INSIDE THE GLASS (clipped to circle) ==================
-    ctx.save();
-    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.clip();
-
-    // 2a) luminous coloured glass body — bright toward the light, deep at the rim
-    const lx=cx-R*0.30, ly=cy-R*0.34;
-    const body=ctx.createRadialGradient(lx,ly,R*0.05, cx,cy,R*1.12);
-    body.addColorStop(0,   rgba(bodyLit,1));
-    body.addColorStop(0.38,rgba(prim,1));
-    body.addColorStop(0.72,rgba(bodyDeep,1));
-    body.addColorStop(1,   rgba(rimDark,1));
-    ctx.fillStyle=body; ctx.fillRect(cx-R,cy-R,2*R,2*R);
-
-    // 2b) deep translucent pocket opposite the light (see-through depth)
-    const pk=ctx.createRadialGradient(cx+R*0.36,cy+R*0.32,R*0.05, cx+R*0.36,cy+R*0.32,R*0.95);
-    pk.addColorStop(0, rgba(mix(prim,INK,0.55),0.6));
-    pk.addColorStop(1, rgba(prim,0));
-    ctx.fillStyle=pk; ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fill();
-
-    // 2c) the twisting vane — three curved colour swishes (dark, defined bodies)
-    const twist=swirlPhase + Math.sin(t*0.3)*0.25;
-    const len=R*(0.9+drive*0.12), wid=R*(0.17+drive*0.05);
-    for(let kk=0;kk<3;kk++)
-      drawSwish(twist + kk*(Math.PI*2/3), 1.0, len, wid, prim, mix(prim,INK,0.35), 0.55);
-
-    // 2d) glowing highlight running along the same swishes (screen = luminous)
-    ctx.globalCompositeOperation='screen';
-    for(let kk=0;kk<3;kk++)
-      drawSwish(twist + kk*(Math.PI*2/3), 1.0, len*0.9, wid*0.5, milky, prim, 0.55+drive*0.2);
-    // bright milky knot where the vanes meet
-    const knR=R*0.30*(1+drive*0.3);
-    const knot=ctx.createRadialGradient(cx,cy,0,cx,cy,knR);
-    knot.addColorStop(0, rgba(mix(prim,WHITE,0.75),0.7+drive*0.2));
-    knot.addColorStop(1, rgba(prim,0));
-    ctx.fillStyle=knot; ctx.beginPath(); ctx.arc(cx,cy,knR,0,Math.PI*2); ctx.fill();
-    ctx.globalCompositeOperation='source-over';
-
-    // 2e) frozen bubbles
-    for(const b of bubbles){
-      const x=cx+b.nx*R, y=cy+b.ny*R, r=b.r*R*(1+0.06*Math.sin(t*2+b.ph));
-      const bg=ctx.createRadialGradient(x-r*0.3,y-r*0.3,0,x,y,r);
-      bg.addColorStop(0,'rgba(255,255,255,0.9)');
-      bg.addColorStop(0.4,'rgba(255,255,255,0.15)');
-      bg.addColorStop(1,'rgba(255,255,255,0)');
-      ctx.fillStyle=bg; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle='rgba(20,30,60,0.35)'; ctx.lineWidth=Math.max(0.5,r*0.18);
-      ctx.beginPath(); ctx.arc(x,y+r*0.15,r*0.9,0.15,Math.PI-0.15); ctx.stroke();
-    }
-
-    // 2f) inner rim darkening — glass thickness / depth
-    const inrim=ctx.createRadialGradient(cx,cy,R*0.6, cx,cy,R);
-    inrim.addColorStop(0,'rgba(0,0,15,0)');
-    inrim.addColorStop(0.8,'rgba(0,0,20,0.06)');
-    inrim.addColorStop(1, rgba(rimDark,0.9));
-    ctx.fillStyle=inrim; ctx.fillRect(cx-R,cy-R,2*R,2*R);
-
-    // 2g) bottom refractive lens — light focusing through the sphere
-    ctx.globalCompositeOperation='screen';
-    const lensR=R*0.72;
-    const lens=ctx.createRadialGradient(cx,cy+R*0.5,0, cx,cy+R*0.5,lensR);
-    lens.addColorStop(0, rgba(mix(prim,WHITE,0.5),0.38+drive*0.15));
-    lens.addColorStop(1, rgba(prim,0));
-    ctx.fillStyle=lens; ctx.beginPath(); ctx.arc(cx,cy+R*0.5,lensR,0,Math.PI*2); ctx.fill();
-    ctx.globalCompositeOperation='source-over';
-
-    // 2h) big soft glass reflection (top-left)
-    ctx.globalCompositeOperation='lighter';
-    ctx.save();
-    ctx.translate(cx-R*0.34, cy-R*0.42); ctx.rotate(-0.6);
-    const hl=ctx.createRadialGradient(0,0,0,0,0,R*0.6);
-    hl.addColorStop(0,'rgba(255,255,255,0.6)');
-    hl.addColorStop(0.5,'rgba(255,255,255,0.1)');
-    hl.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle=hl; ctx.beginPath(); ctx.ellipse(0,0,R*0.4,R*0.6,0,0,Math.PI*2); ctx.fill();
-    ctx.restore();
-    ctx.globalCompositeOperation='source-over';
-
-    ctx.restore(); // ============ end clip ============
-
-    // 3) sharp glossy specular hot-spot
-    const spx=cx-R*0.40, spy=cy-R*0.46;
-    const spec=ctx.createRadialGradient(spx,spy,0,spx,spy,R*0.13);
-    spec.addColorStop(0,'rgba(255,255,255,1)');
-    spec.addColorStop(0.6,'rgba(255,255,255,0.45)');
-    spec.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle=spec; ctx.beginPath(); ctx.arc(spx,spy,R*0.13,0,Math.PI*2); ctx.fill();
-
-    // 4) bottom-right rim light (light wrapping the sphere)
-    ctx.save();
-    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.clip();
-    const rimx=cx+R*0.44, rimy=cy+R*0.52;
-    const rl=ctx.createRadialGradient(rimx,rimy,R*0.55, rimx,rimy,R*1.0);
-    rl.addColorStop(0,'rgba(255,255,255,0)');
-    rl.addColorStop(0.75, rgba(mix(prim,WHITE,0.7),0.0));
-    rl.addColorStop(1, rgba(mix(prim,WHITE,0.85),0.6));
-    ctx.fillStyle=rl; ctx.fillRect(cx-R,cy-R,2*R,2*R);
-    ctx.restore();
-
-    // 5) bright fresnel edge (refractive rim, brighter toward the bottom)
-    ctx.lineWidth=Math.max(1,R*0.016);
-    ctx.strokeStyle=rgba(mix(prim,WHITE,0.8),0.5);
-    ctx.beginPath(); ctx.arc(cx,cy,R-ctx.lineWidth*0.5,0,Math.PI*2); ctx.stroke();
-
+    gl.uniform2f(U.center, cxDev, cyDev);
+    gl.uniform1f(U.radius, radDev);
+    gl.uniform1f(U.time, t);
+    gl.uniform3f(U.color, P.col[0]/255, P.col[1]/255, P.col[2]/255);
+    gl.uniform1f(U.swirl, P.swirl);
+    gl.uniform1f(U.drive, drive);
+    gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES,0,3);
     requestAnimationFrame(frame);
   }
 
-  // ---------- State switching ------------------------------------------------
-  const stateLabel=document.getElementById('stateLabel');
-  const stateHint=document.getElementById('stateHint');
+  // ---------- State switching ----------
+  const stateLabel=document.getElementById('stateLabel'), stateHint=document.getElementById('stateHint');
   const segs=[...document.querySelectorAll('.seg')];
-
   async function setState(next){
-    state=next;
-    const S=STATES[next];
-    stateLabel.textContent=S.name;
-    stateHint.textContent=S.hint;
+    state=next; const S=STATES[next];
+    stateLabel.textContent=S.name; stateHint.textContent=S.hint;
     segs.forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.state===next)));
     if(next==='speaking') speakSeed=Math.random()*1000;
     if(next==='listening'){
@@ -428,14 +303,11 @@
   }
   segs.forEach(b=>b.addEventListener('click',()=>setState(b.dataset.state)));
 
-  // ---------- Start gate -----------------------------------------------------
+  // ---------- Start gate ----------
   const gate=document.getElementById('gate');
   document.getElementById('gateBtn').addEventListener('click',()=>{
-    gate.style.display='none';
-    running=true; t0=performance.now(); lastNow=t0;
-    requestAnimationFrame(frame);
+    gate.style.display='none'; running=true; t0=performance.now(); requestAnimationFrame(frame);
   });
-
   window.addEventListener('keydown',e=>{
     const map={'1':'idle','2':'listening','3':'thinking','4':'speaking'};
     if(map[e.key]) setState(map[e.key]);
