@@ -96,6 +96,13 @@
     thinking:  { name:'Thinking',  hint:'Processing',                               col:[140,60,255],  tint:0.5,  spin:0.230, drive:0.0 },
     speaking:  { name:'Speaking',  hint:'Agent is responding',                      col:[20,210,150],  tint:0.46, spin:0.090, drive:0.85 }
   };
+  // Siri-style overlay palettes — soft luminous colours that glow over the glass.
+  const SIRI = {
+    idle:      [[90,150,255],[150,190,255],[110,205,255],[210,225,255]],
+    listening: [[40,205,255],[130,235,255],[90,185,255],[215,248,255]],
+    thinking:  [[175,115,255],[215,150,255],[150,125,255],[228,195,255]],
+    speaking:  [[40,225,175],[130,238,205],[90,205,255],[214,255,232]]
+  };
   let state='idle';
   const P = { col:[10,70,255], tint:0.45, spin:0.02, drive:0, level:0, angle:0 };
   const lerp=(a,b,k)=>a+(b-a)*k;
@@ -183,12 +190,10 @@
     sh.addColorStop(0,'rgba(0,0,0,0.4)'); sh.addColorStop(1,'rgba(0,0,0,0)');
     ctx.fillStyle=sh; ctx.beginPath(); ctx.ellipse(cx,cy+R*1.05,R*0.8,R*0.18,0,0,Math.PI*2); ctx.fill();
 
-    // the real marble — fixed round shape, gentle internal turn + subtle breath
-    const breath=1+Math.sin(t*1.1)*0.012;
-    const sc=breath*(1+drive*0.05);
+    // the real marble — fixed round shape, gentle internal turn (NO sound-scaling)
     ctx.save();
     ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.clip();
-    ctx.translate(cx,cy); ctx.rotate(P.angle); ctx.scale(sc,sc);
+    ctx.translate(cx,cy); ctx.rotate(P.angle);
     ctx.drawImage(img, -R*1.02, -R*1.02, R*2.04, R*2.04);
     ctx.restore();
 
@@ -199,6 +204,33 @@
     ctx.globalAlpha=P.tint;
     ctx.fillStyle=rgb(P.col); ctx.fillRect(cx-R,cy-R,2*R,2*R);
     ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+    ctx.restore();
+
+    // ---- Siri-style living energy: soft shapes that drift, morph & react to sound ----
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx,cy,R*0.98,0,Math.PI*2); ctx.clip();
+    ctx.globalCompositeOperation='screen';
+    const scol=SIRI[state];
+    const energy=0.28+drive*0.8;                 // always a little alive; blooms with sound
+    const spd=0.6+drive*1.8;                      // morph/drift speeds up with sound
+    const fieldA=t*0.18 + P.angle*0.4;            // the whole shape-field slowly rotates
+    for(let i=0;i<4;i++){
+      const ph=i*1.9;
+      const amp=R*(0.16+0.14*i);
+      let ox=Math.sin(t*(0.45+i*0.12)*spd+ph)*amp;
+      let oy=Math.cos(t*(0.34+i*0.16)*spd+ph*1.3)*amp;
+      const rx=ox*Math.cos(fieldA)-oy*Math.sin(fieldA);
+      const ry=ox*Math.sin(fieldA)+oy*Math.cos(fieldA);
+      const bx=cx+rx*(0.7+drive*0.5), by=cy+ry*(0.7+drive*0.5);
+      const rad=R*(0.34-i*0.04)*(0.65+energy*0.9+0.15*Math.sin(t*2.2+i));  // morphing size
+      const c=scol[i%scol.length];
+      const g=ctx.createRadialGradient(bx,by,0,bx,by,rad);
+      g.addColorStop(0,`rgba(${c[0]},${c[1]},${c[2]},${0.42*energy})`);
+      g.addColorStop(0.5,`rgba(${c[0]},${c[1]},${c[2]},${0.14*energy})`);
+      g.addColorStop(1,`rgba(${c[0]},${c[1]},${c[2]},0)`);
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(bx,by,rad,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalCompositeOperation='source-over';
     ctx.restore();
 
     // living glass highlights (fixed surface reflections on top of the turning glass)
