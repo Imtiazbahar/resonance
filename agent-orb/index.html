@@ -103,80 +103,80 @@ float noise(vec3 x){
 float fbm(vec3 p){ float a=0.5,s=0.0; for(int i=0;i<4;i++){ s+=a*noise(p); p*=2.03; a*=0.5;} return s; }
 float hash1(float n){ return fract(sin(n*127.1)*43758.5453); }
 
-// A soft studio environment the clear glass reflects & refracts — bright toward the
-// top so the marble reads as luminous glass rather than a dark void.
-vec3 envCol(vec3 dir){
-  float y = dir.y*0.5 + 0.5;
-  vec3 top = mix(vec3(1.0), uColor, 0.12);
-  vec3 bot = mix(uColor, vec3(0.02,0.03,0.09), 0.45);
-  vec3 c = mix(bot, top, smoothstep(0.0, 1.0, y));
-  c += vec3(1.0) * smoothstep(0.78, 1.0, y) * 0.35;   // key light band
+// A vivid cosine palette — warm ambers through to blues, like the marbles in the photo.
+vec3 palette(float t){
+  return 0.55 + 0.45*cos(6.2831*(t + vec3(0.0, 0.33, 0.66)));
+}
+// A bright, out-of-focus field of colourful glass — the world the marble refracts & reflects.
+vec3 envTex(vec2 p){
+  vec3 c = mix(vec3(1.0,0.72,0.42), vec3(0.35,0.55,1.0), 0.5+0.5*sin(p.x*0.5 - p.y*0.4 + 1.0));
+  c *= 0.8;
+  for(int i=0;i<12;i++){
+    float fi=float(i);
+    vec2 ctr = vec2(hash1(fi)*10.0-5.0, hash1(fi+31.0)*10.0-5.0);
+    ctr += 0.5*vec2(sin(uTime*0.07+fi), cos(uTime*0.09+fi*1.3));   // slow drift
+    float rad = 0.55 + hash1(fi+5.0)*1.15;
+    float m = smoothstep(1.0, 0.12, length(p-ctr)/rad);
+    vec3 mc = palette(hash1(fi+7.0));
+    c = mix(c, mc, m*0.9);
+    c += mc * smoothstep(0.32, 0.0, length(p-ctr-vec2(rad*0.22,rad*0.22))) * 0.7;  // glint
+  }
   return c;
 }
 
 void main(){
   vec2 d = (gl_FragCoord.xy - uCenter)/uRadius;   // 0 at centre, 1 at rim
   float rr = length(d);
-  vec3 col = vec3(0.0);
-  float alpha = 0.0;
 
-  if(rr < 1.06){
-    // ---- sphere geometry ----
+  // ---- background: the bright colourful world, dimmed away from the marble for HUD legibility ----
+  vec3 env = envTex(d*1.7);
+  float vig = mix(0.14, 1.0, smoothstep(4.2, 1.0, rr));
+  vec3 outCol = env * vig;
+
+  if(rr < 1.04){
     float rc = min(rr, 1.0);
     float z = sqrt(max(0.0, 1.0 - rc*rc));
     vec3 N = normalize(vec3(d, z));
     vec3 V = vec3(0.0, 0.0, 1.0);
-    float tt = uTime*(0.15 + uSwirl*0.25)*(1.0 + uDrive*0.7);
+    // voice reactivity: ripple the surface when listening / speaking
+    N = normalize(N + 0.03*uDrive*vec3(sin(d.y*22.0+uTime*7.0), cos(d.x*22.0+uTime*7.0), 0.0));
 
-    // ---- clear glass: refraction (see-through) + reflection, mixed by fresnel ----
-    vec3 refrDir = refract(-V, N, 0.68);
-    vec3 reflDir = reflect(-V, N);
-    vec3 through = envCol(refrDir) * mix(vec3(1.0), uColor, 0.55);   // tinted transmission
-    vec3 mirror  = envCol(reflDir);
-    float fres = pow(1.0 - max(dot(N,V),0.0), 2.6);
-    vec3 colm = mix(through, mirror, clamp(fres*1.1, 0.0, 1.0));
+    // ---- refraction: the environment seen THROUGH the glass, inverted & magnified like a lens ----
+    vec3 refr = refract(-V, N, 0.66);
+    vec2 lensUv = -d*0.85 + refr.xy*0.7;
+    vec3 through = envTex(lensUv*1.7) * mix(vec3(1.0), uColor, 0.5) * (1.0 + 0.25*uDrive);
 
-    // ---- smooth curved internal lens / folded sheet (as in the photo) ----
-    float caz = tt*0.6;
-    vec2 luv = mat2(cos(caz),-sin(caz),sin(caz),cos(caz)) * d;
-    float curve1 = luv.y + 0.55*luv.x*luv.x - 0.06;    // main curved facet
-    float sheet1 = smoothstep(0.16, 0.0, abs(curve1));
-    float curve2 = luv.y + 0.35*luv.x*luv.x + 0.17;    // fainter second fold
-    float sheet2 = smoothstep(0.10, 0.0, abs(curve2));
-    vec3 lensCol = mix(uColor, vec3(1.0), 0.8);
-    colm += lensCol * (sheet1*0.5 + sheet2*0.28) * z;
+    // ---- reflection: coloured glints of the environment near the rim ----
+    vec3 rfl = reflect(-V, N);
+    vec3 mirror = envTex(rfl.xy*2.3 + d*0.3);
+
+    float fres = pow(1.0 - max(dot(N,V),0.0), 2.4);
+    vec3 g = mix(through, mirror, clamp(fres*1.15, 0.0, 1.0));
 
     // ---- suspended air bubbles ----
     for(int i=0;i<7;i++){
       float fi=float(i);
       vec2 bp = vec2(hash1(fi)*1.3-0.65, hash1(fi+9.1)*1.3-0.65);
-      bp += 0.03*vec2(sin(tt+fi*1.7), cos(tt*0.9+fi));
-      if(length(bp) < 0.82){
-        float brad = 0.016 + 0.02*hash1(fi+4.0);
+      bp += 0.03*vec2(sin(uTime*0.4+fi*1.7), cos(uTime*0.37+fi));
+      if(length(bp) < 0.8){
+        float br = 0.014 + 0.018*hash1(fi+4.0);
         float dd = length(d - bp);
-        colm = mix(colm, colm*0.55, smoothstep(brad*1.5, brad*0.9, dd));                 // dark ring
-        colm += vec3(1.0) * smoothstep(brad*0.7, 0.0, length(d-bp+vec2(brad*0.25,-brad*0.25))) * 0.7; // highlight
+        g = mix(g, g*0.6, smoothstep(br*1.5, br*0.9, dd));                               // refractive ring
+        g += vec3(1.0) * smoothstep(br*0.7, 0.0, length(d-bp+vec2(br*0.25,-br*0.25))) * 0.8; // highlight
       }
     }
 
-    // ---- surface finish: sharp specular + bright refractive rim ----
-    vec3 L = normalize(vec3(-0.5, 0.55, 0.75));
+    // ---- surface finish: sharp specular + bright rim ----
+    vec3 L = normalize(vec3(-0.5, 0.6, 0.72));
     vec3 H = normalize(L + V);
-    float sp = pow(max(dot(N,H),0.0), 260.0) * 1.8;
-    colm += vec3(sp);
-    colm += vec3(1.0) * fres * 0.25;
-    colm *= mix(1.0, 0.72, smoothstep(0.9, 1.0, rc));   // seat the very edge
+    g += vec3(pow(max(dot(N,H),0.0), 300.0)) * 2.2;
+    g += vec3(1.0) * fres * 0.25;
 
     float aa = smoothstep(1.0, 1.0 - 2.5/uRadius, rr);
-    col = colm*aa; alpha = aa;
+    outCol = mix(outCol, g, aa);
   }
 
-  // ---- coloured halo cast outside the glass ----
-  float halo = exp(-max(rr - 1.0, 0.0) * 3.2) * (0.16 + uDrive*0.22);
-  vec3 haloCol = mix(uColor, vec3(1.0), 0.15);
-  vec3 outCol = mix(haloCol, col, alpha);
-  float outA  = max(alpha, halo);
-  gl_FragColor = vec4(outCol, outA);
+  gl_FragColor = vec4(outCol, 1.0);
 }
 </script>
 
