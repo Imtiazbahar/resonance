@@ -119,15 +119,15 @@ vec3 flameColor(float h){
 
 // One liquid beam: a wavy glowing band that licks up the walls. Blue body, purple accents.
 // surfOut returns its surface height so the glass reflections can track it.
-vec3 beam(vec2 d, float t, float ph, float lvl, float dr, float ch, vec3 accent, out float surfOut){
-  float baseY = lvl + 0.11*sin(t*0.45 + ph) + dr*0.16;
-  float tilt  = 0.13*sin(t*0.37 + ph*1.3);
-  float wave  = 0.10*sin(d.x*3.0 + t*0.80 + ph) + 0.05*sin(d.x*5.3 - t*1.10 + ph*1.7);
+vec3 beam(vec2 d, float t, float ph, float lvl, float dr, float ch, vec3 accent, float dir, out float surfOut){
+  float baseY = lvl + 0.11*sin(dir*t*0.45 + ph) + dr*0.16;
+  float tilt  = 0.13*sin(dir*t*0.37 + ph*1.3);
+  float wave  = 0.10*sin(d.x*3.0 + dir*t*0.80 + ph) + 0.05*sin(d.x*5.3 - dir*t*1.10 + ph*1.7); // travels with dir
   float surf  = baseY + tilt*d.x + wave;
   surfOut = surf;
   float s = d.y - surf;
   // uneven thickness along the beam — thin in places, taller in others (drifts)
-  float thk = 0.15 + 0.07*sin(d.x*4.3 + t*0.7 + ph) + 0.04*sin(d.x*8.0 - t*1.0 + ph*2.1);
+  float thk = 0.15 + 0.07*sin(d.x*4.3 + dir*t*0.7 + ph) + 0.04*sin(d.x*8.0 - dir*t*1.0 + ph*2.1);
   thk = max(thk, 0.06);
   float ribbon = exp(-pow(s/thk, 2.0));
   float below  = smoothstep(0.0, -0.95, s);
@@ -137,10 +137,10 @@ vec3 beam(vec2 d, float t, float ph, float lvl, float dr, float ch, vec3 accent,
   for(int i=0;i<2;i++){
     float sgn = (i==0) ? -1.0 : 1.0;
     float ex = sgn*0.80;
-    float ey = baseY + tilt*ex + 0.10*sin(ex*3.0 + t*0.80 + ph);
+    float ey = baseY + tilt*ex + 0.10*sin(ex*3.0 + dir*t*0.80 + ph);
     vec2 lp = d - vec2(ex, ey);
     lp.x -= sgn*0.28*max(lp.y, 0.0);
-    float fl = 0.6 + 0.4*sin(t*2.6 + ph + sgn*1.9) + 0.2*noise(vec3(d*4.0, t*0.8));
+    float fl = 0.6 + 0.4*sin(dir*t*2.6 + ph + sgn*1.9) + 0.2*noise(vec3(d*4.0, t*0.8));
     float Hh = 0.30 + 0.28*dr + 0.08*fl;
     float vmask = smoothstep(-0.14, 0.06, lp.y) * smoothstep(Hh, 0.0, lp.y); // soft both ends
     licks += exp(-pow(lp.x/0.10, 2.0)) * vmask * fl;
@@ -170,8 +170,8 @@ void main(){
 
     // ---- two liquid beams, out of phase, overlapping ----
     float surf1, surf2;
-    vec3 col  = beam(d, t, 0.0,  -0.02, uDrive,      uChurn, vec3(1.05,0.55,0.16), surf1);        // beam 1: blue + yellow/orange
-    col      += beam(d, t, 2.4,   0.12, uDrive*0.9,  uChurn, vec3(0.66,0.30,1.15), surf2) * 0.85; // beam 2: blue + purple (out of phase)
+    vec3 col  = beam(d, t, 0.0,  -0.02, uDrive,      uChurn, vec3(1.05,0.55,0.16),  1.0, surf1);        // beam 1: blue + yellow, travels one way
+    col      += beam(d, t, 2.4,   0.12, uDrive*0.9,  uChurn, vec3(0.66,0.30,1.15), -1.0, surf2) * 0.85; // beam 2: blue + purple, travels the other way
     col += vec3(0.16,0.22,0.80) * smoothstep(0.98,0.45,d.y) * 0.05;         // faint cool cap up top
     col *= (0.95 + 0.55*uDrive + 0.25*uChurn);
     col = min(col, vec3(1.3));
