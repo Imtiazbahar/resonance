@@ -168,14 +168,35 @@ void main(){
     col *= (0.95 + 0.55*uDrive + 0.25*uChurn);
     col = min(col, vec3(1.25));
 
-    // ---- dark glass shell (kept light near the rim so the licks read) ----
-    col *= mix(1.0, 0.78, smoothstep(0.85, 1.0, rc));           // gentle edge seat only
-    float rimTop = smoothstep(0.82, 1.0, rc) * (0.4 + 0.6*clamp(N.y,0.0,1.0));
-    col += vec3(0.66,0.68,0.78) * rimTop * 0.5;                 // soft grey rim, brightest top
-    col += vec3(0.85) * smoothstep(0.955, 1.0, rc) * 0.35;      // thin crisp edge
-    vec3 L = normalize(vec3(-0.4, 0.7, 0.6));
+    // ---- glass reflections: broad soft highlights top & bottom, that pick up the flame ----
+    col *= mix(1.0, 0.86, smoothstep(0.9, 1.0, rc));            // gentle edge seat
+    vec3 flameHere = col;                                        // interior flame colour so far
+    float rimband = smoothstep(0.5, 1.0, rc);                   // near the rim
+    float topA = rimband * smoothstep(0.05, 0.85, N.y);         // upper rim region
+    float botA = rimband * smoothstep(0.05, 0.85, -N.y);        // lower rim region
+    vec3 echoCol = mix(vec3(0.30,0.55,1.10), vec3(1.05,0.50,0.14), warmth); // flame's colour
+
+    vec3 refl = vec3(0.0);
+    // TOP: soft cool studio highlight + faint inverted echo of the band reflected up high
+    refl += vec3(0.52,0.60,0.75) * topA * 0.55;
+    float surfTop = 0.66 - 0.55*surf;                           // mirror the wave near the top
+    float ribT = exp(-pow((d.y - surfTop)/0.12, 2.0));
+    refl += echoCol * ribT * smoothstep(0.25, 0.85, d.y) * 0.30;
+
+    // BOTTOM: brighter reflection, strongly tinted by the flame (it glows onto the bottom glass)
+    refl += vec3(0.70,0.80,0.95) * botA * 0.5;
+    refl += flameHere * botA * 0.8;
+    float ribB = exp(-pow((d.y - (-0.72 + 0.30*surf))/0.14, 2.0)); // echo pooled at the very bottom
+    refl += echoCol * ribB * smoothstep(-0.35, -0.92, d.y) * 0.35;
+
+    // frosted bright rim all around + one soft, small glint (not a hard dot)
+    refl += vec3(0.80,0.85,0.95) * smoothstep(0.93, 1.0, rc) * 0.30;
+    vec3 L = normalize(vec3(-0.35, 0.75, 0.55));
     vec3 H = normalize(L + V);
-    col += vec3(1.0) * pow(max(dot(N,H),0.0), 220.0) * 0.55;    // specular
+    refl += vec3(0.90,0.95,1.0) * pow(max(dot(N,H),0.0), 90.0) * 0.22;
+
+    col += refl;
+    col = min(col, vec3(1.35));
 
     float aa = smoothstep(1.0, 1.0 - 2.0/uRadius, rr);
     outc = col; alpha = aa;
