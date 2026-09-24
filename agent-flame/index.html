@@ -131,37 +131,48 @@ void main(){
     float t = uTime;
     float energy = uChurn + uDrive;
 
-    // ---- a soft, SPREAD flame: a gentle blue glow low in the glass with a warm core,
-    //      drifting slowly up & down. Smooth gradients only — no ridgy high-frequency noise ----
-    vec2 p = d;
-    float bob  = 0.05 * sin(t*0.7) * (0.7 + energy);       // whole flame breathes up & down
-    p.y -= bob;
-    p.x -= 0.05 * sin(t*0.5 + p.y*2.0);                    // very gentle sideways drift
-    float slow = noise(vec3(p*1.15, t*0.22));             // ONE smooth octave (soft, not ridgy)
+    // ---- a luminous liquid band that sloshes & tilts, licking warm tongues up the walls ----
+    float baseY = -0.02 + 0.11*sin(t*0.45) + uDrive*0.16;      // surface height rises with sound
+    float tilt  = 0.13*sin(t*0.37);                            // gentle tilt
+    float wave  = 0.10*sin(d.x*3.0 + t*0.80) + 0.05*sin(d.x*5.3 - t*1.10); // smooth undulation
+    float surf  = baseY + tilt*d.x + wave;
+    float s = d.y - surf;                                       // >0 above the surface
 
-    float top     = 0.26 + 0.34*uDrive;                   // how high the glow reaches
-    float vgrad   = smoothstep(top, -0.9, p.y);           // bright low -> dark toward the top
-    float hspread = smoothstep(1.05, 0.05, abs(p.x));     // broad across, soft at the sides
-    float form    = vgrad * hspread * (0.78 + 0.35*slow); // the soft blue spread
+    float ribbon = exp(-pow(s/0.14, 2.0));                      // glowing ribbon along the surface
+    float below  = smoothstep(0.0, -0.95, s);                   // soft body pooling below
+    float warmth = smoothstep(0.32, 0.86, abs(d.x));            // warmer toward the sides
 
-    float bandY = -0.26 + 0.05*sin(t*0.6);                // warm core drifts gently up/down
-    float band  = exp(-pow((p.y - bandY)/0.26, 2.0)) * exp(-pow(p.x/0.5, 2.0)); // soft core blob
+    // warm tongues climbing the interior walls at the two contact points
+    float licks = 0.0;
+    for(int i=0;i<2;i++){
+      float sgn = (i==0) ? -1.0 : 1.0;
+      float ex = sgn*0.80;
+      float ey = baseY + tilt*ex + 0.10*sin(ex*3.0 + t*0.80);
+      vec2 lp = d - vec2(ex, ey);
+      lp.x -= sgn * 0.28 * max(lp.y, 0.0);                      // curl inward as it climbs
+      float fl = 0.6 + 0.4*sin(t*2.6 + sgn*1.9) + 0.2*noise(vec3(d*4.0, t*0.8));
+      float Hh = 0.30 + 0.28*uDrive + 0.08*fl;                  // climb height (flickers, grows w/ sound)
+      licks += exp(-pow(lp.x/0.10, 2.0)) * smoothstep(Hh, 0.0, lp.y) * step(-0.05, lp.y) * fl;
+    }
 
-    float heat = form*0.5 + band*0.75;
-    heat *= (0.9 + 0.7*uDrive + 0.3*uChurn);
-    heat = clamp(heat, 0.0, 1.15);
+    // ---- colour: cool blue/white body, warm orange sides & licks ----
+    vec3 bandCol = mix(vec3(0.28,0.55,1.10), vec3(1.05,0.50,0.14), warmth);            // blue -> orange
+    bandCol = mix(bandCol, vec3(0.90,0.96,1.15), smoothstep(0.55,1.0,ribbon)*(1.0-warmth)); // white-hot core
+    vec3 col = bandCol * ribbon;
+    col += vec3(0.10,0.26,0.85) * below * 0.42;                 // blue underglow
+    col += vec3(1.05,0.52,0.16) * licks * (0.85 + 0.5*uDrive);  // orange climbing licks
+    col += vec3(0.18,0.34,0.85) * smoothstep(0.98,0.45,d.y) * 0.05; // faint cool cap up top
+    col *= (0.95 + 0.55*uDrive + 0.25*uChurn);
+    col = min(col, vec3(1.25));
 
-    vec3 col = flameColor(heat);
-    col = hueRotate(col, uHue);
-
-    // ---- dark glass shell over the glowing interior ----
-    col *= mix(1.0, 0.32, smoothstep(0.6, 1.0, rc));                     // inner darkening
+    // ---- dark glass shell (kept light near the rim so the licks read) ----
+    col *= mix(1.0, 0.78, smoothstep(0.85, 1.0, rc));           // gentle edge seat only
     float rimTop = smoothstep(0.82, 1.0, rc) * (0.4 + 0.6*clamp(N.y,0.0,1.0));
-    col += vec3(0.66,0.68,0.78) * rimTop * 0.55;                         // soft grey rim, brightest top
-    col += vec3(0.85) * smoothstep(0.955, 1.0, rc) * 0.4;               // thin crisp edge
+    col += vec3(0.66,0.68,0.78) * rimTop * 0.5;                 // soft grey rim, brightest top
+    col += vec3(0.85) * smoothstep(0.955, 1.0, rc) * 0.35;      // thin crisp edge
     vec3 L = normalize(vec3(-0.4, 0.7, 0.6));
     vec3 H = normalize(L + V);
-    col += vec3(1.0) * pow(max(dot(N,H),0.0), 220.0) * 0.6;              // specular
+    col += vec3(1.0) * pow(max(dot(N,H),0.0), 220.0) * 0.55;    // specular
 
     float aa = smoothstep(1.0, 1.0 - 2.0/uRadius, rr);
     outc = col; alpha = aa;
@@ -216,7 +227,7 @@ void main(){
     canvas.style.width=W+'px'; canvas.style.height=H+'px';
     gl.viewport(0,0,canvas.width,canvas.height);
     const cx=W/2, cy=H/2 - Math.min(H*0.06,40);
-    const baseR=Math.min(120, Math.max(58, Math.min(W,H)*0.135));   // small, marble-sized
+    const baseR=Math.min(140, Math.max(70, Math.min(W,H)*0.16));   // small orb, room for the band
     cxDev=cx*dpr; cyDev=canvas.height - cy*dpr; radDev=baseR*dpr;
     document.documentElement.style.setProperty('--orb-r', baseR+'px');
   }
