@@ -138,7 +138,10 @@ void main(){
     float surf  = baseY + tilt*d.x + wave;
     float s = d.y - surf;                                       // >0 above the surface
 
-    float ribbon = exp(-pow(s/0.14, 2.0));                      // glowing ribbon along the surface
+    // uneven thickness along the beam — thin in some places, taller in others (drifts slowly)
+    float thk = 0.15 + 0.07*sin(d.x*4.3 + t*0.7) + 0.04*sin(d.x*8.0 - t*1.0);
+    thk = max(thk, 0.06);
+    float ribbon = exp(-pow(s/thk, 2.0));                       // glowing ribbon along the surface
     float below  = smoothstep(0.0, -0.95, s);                   // soft body pooling below
     float warmth = smoothstep(0.32, 0.86, abs(d.x));            // warmer toward the sides
 
