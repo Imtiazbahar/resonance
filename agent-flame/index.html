@@ -131,21 +131,25 @@ void main(){
     float t = uTime;
     float energy = uChurn + uDrive;
 
-    // ---- a small match-flame, low-centre, licking gently upward ----
-    vec2 fc = vec2(0.0, -0.30);                        // flame base sits low in the orb
-    vec2 q = d - fc;
-    float turb = fbm(vec3(q*3.0, -t*(1.1 + energy*1.7)));   // rising turbulence
-    q.x += (turb - 0.5) * 0.16 * (0.6 + energy*0.7);   // gentle sideways lick
-    float fH = 0.50 + 0.20*uDrive;                     // flame height
-    float u = q.y / fH;                                 // 0 base -> 1 tip
-    float taper = smoothstep(1.05, -0.25, u);          // present at base, gone past the tip
-    float bulge = mix(1.0, 0.12, smoothstep(0.0, 1.0, clamp(u,0.0,1.0))); // wide base -> point
-    float W = (0.17 + 0.05*uDrive) * bulge;            // half-width
-    float across = 1.0 - smoothstep(0.0, max(W,0.001), abs(q.x));
-    float flame = across * taper;
-    float heat = flame * mix(1.15, 0.35, clamp(u,0.0,1.0)) * (0.95 + 0.6*uDrive);
-    float glow = exp(-length(q*vec2(2.2,1.5)) * 3.0);  // soft halo hugging the flame
-    heat = clamp(max(heat, glow*(0.4 + 0.4*uDrive)), 0.0, 1.2);
+    // ---- a soft, SPREAD flame: a gentle blue glow low in the glass with a warm core,
+    //      drifting slowly up & down. Smooth gradients only — no ridgy high-frequency noise ----
+    vec2 p = d;
+    float bob  = 0.05 * sin(t*0.7) * (0.7 + energy);       // whole flame breathes up & down
+    p.y -= bob;
+    p.x -= 0.05 * sin(t*0.5 + p.y*2.0);                    // very gentle sideways drift
+    float slow = noise(vec3(p*1.15, t*0.22));             // ONE smooth octave (soft, not ridgy)
+
+    float top     = 0.26 + 0.34*uDrive;                   // how high the glow reaches
+    float vgrad   = smoothstep(top, -0.9, p.y);           // bright low -> dark toward the top
+    float hspread = smoothstep(1.05, 0.05, abs(p.x));     // broad across, soft at the sides
+    float form    = vgrad * hspread * (0.78 + 0.35*slow); // the soft blue spread
+
+    float bandY = -0.26 + 0.05*sin(t*0.6);                // warm core drifts gently up/down
+    float band  = exp(-pow((p.y - bandY)/0.26, 2.0)) * exp(-pow(p.x/0.5, 2.0)); // soft core blob
+
+    float heat = form*0.5 + band*0.75;
+    heat *= (0.9 + 0.7*uDrive + 0.3*uChurn);
+    heat = clamp(heat, 0.0, 1.15);
 
     vec3 col = flameColor(heat);
     col = hueRotate(col, uHue);
