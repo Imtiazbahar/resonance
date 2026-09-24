@@ -119,7 +119,7 @@ vec3 flameColor(float h){
 
 // One liquid beam: a wavy glowing band that licks up the walls. Blue body, purple accents.
 // surfOut returns its surface height so the glass reflections can track it.
-vec3 beam(vec2 d, float t, float ph, float lvl, float dr, float ch, out float surfOut){
+vec3 beam(vec2 d, float t, float ph, float lvl, float dr, float ch, vec3 accent, out float surfOut){
   float baseY = lvl + 0.11*sin(t*0.45 + ph) + dr*0.16;
   float tilt  = 0.13*sin(t*0.37 + ph*1.3);
   float wave  = 0.10*sin(d.x*3.0 + t*0.80 + ph) + 0.05*sin(d.x*5.3 - t*1.10 + ph*1.7);
@@ -146,11 +146,11 @@ vec3 beam(vec2 d, float t, float ph, float lvl, float dr, float ch, out float su
     licks += exp(-pow(lp.x/0.10, 2.0)) * vmask * fl;
   }
   // colour: blue body -> purple sides, white-hot cool core
-  vec3 bandCol = mix(vec3(0.30,0.45,1.10), vec3(0.72,0.30,1.15), warmth);
+  vec3 bandCol = mix(vec3(0.30,0.45,1.10), accent, warmth);           // blue body -> accent sides
   bandCol = mix(bandCol, vec3(0.85,0.90,1.18), smoothstep(0.55,1.0,ribbon)*(1.0-warmth));
   vec3 c = bandCol * ribbon;
   c += vec3(0.14,0.20,0.85) * below * 0.42;              // blue underglow
-  c += vec3(0.60,0.28,1.15) * licks * (0.85 + 0.5*dr);  // purple climbing licks
+  c += accent * licks * (0.85 + 0.5*dr);                 // climbing licks in the accent colour
   return c;
 }
 
@@ -170,8 +170,8 @@ void main(){
 
     // ---- two liquid beams, out of phase, overlapping ----
     float surf1, surf2;
-    vec3 col  = beam(d, t, 0.0,  -0.02, uDrive,      uChurn, surf1);
-    col      += beam(d, t, 2.4,   0.12, uDrive*0.9,  uChurn, surf2) * 0.85; // 2nd beam: out of phase, higher
+    vec3 col  = beam(d, t, 0.0,  -0.02, uDrive,      uChurn, vec3(1.05,0.55,0.16), surf1);        // beam 1: blue + yellow/orange
+    col      += beam(d, t, 2.4,   0.12, uDrive*0.9,  uChurn, vec3(0.66,0.30,1.15), surf2) * 0.85; // beam 2: blue + purple (out of phase)
     col += vec3(0.16,0.22,0.80) * smoothstep(0.98,0.45,d.y) * 0.05;         // faint cool cap up top
     col *= (0.95 + 0.55*uDrive + 0.25*uChurn);
     col = min(col, vec3(1.3));
