@@ -134,35 +134,48 @@ float gifSD(vec2 q, float ph){
   return mix(frameSD(q, i0), frameSD(q, i1), f - i0);           // blend neighbouring frames = smooth
 }
 
-// One blob of light with the GIF's exact shape & morph, rendered as soft glowing light.
-vec3 blob(vec2 d, float ph, float dr, vec3 accent, float vSign){
-  float grow = 1.0 + 0.22*dr;                       // the blob swells with sound
-  vec2 cen   = vec2(0.0, vSign*0.08*dr);            // sound nudges one blob up, the other down
-  vec2 q     = (d - cen) / grow;
-  float sd   = gifSD(q, ph) * grow;
-  // ---- colour as ONE continuous gradient (no inner boundary): the accent at the edge
-  //      bleeds inward into blue, then into the bright core. How far it reaches varies. ----
-  float nv   = noise(vec3(q*2.6, uTime*0.18 + vSign*3.0));
-  float nv2  = noise(vec3(q*3.6 + 7.1, uTime*0.27 - vSign*2.0));     // larger-scale: no mottling
-  float wv   = 0.5 + 0.5*sin(q.x*4.0 - q.y*3.0 + uTime*0.35 + vSign*1.7);
-  float var  = smoothstep(0.15, 0.85, clamp(mix(mix(nv, wv, 0.5), nv2, 0.35), 0.0, 1.0));
-  float side = smoothstep(0.0, 0.5, abs(q.x));            // accent strongest toward the lobe ends
+// One blob of light: the GIF's exact peanut shape & side-to-side morph, but coloured, lit and
+// moved like Agent Flame (electric-blue body, white-hot core, warm flares only at the tips,
+// blue underglow, wavy undulation / bob / tilt / uneven thickness, travelling one way or the other).
+vec3 blob(vec2 d, float ph, float dr, vec3 accent, float vSign, float dir){
+  float t    = uTime;
+  float grow = 1.0 + 0.22*dr;                                    // swells with sound
+  float bob  = 0.05*sin(dir*t*0.45 + vSign);                     // gentle rise & fall
+  float tilt = 0.06*sin(dir*t*0.37 + vSign*1.3);                 // gentle tilt
+  vec2 cen = vec2(0.0, vSign*0.08*dr + bob);                     // sound pushes one up, the other down
+  vec2 q   = (d - cen) / grow;
+  // gentle, broad undulation travelling along the blob (keeps the peanut shape intact)
+  q.y -= tilt*q.x + 0.028*sin(q.x*2.2 + dir*t*0.80);
+  q.y *= 1.0 + 0.05*sin(q.x*2.0 + dir*t*0.70);                  // slight, slow thickness breathing
+  float sd = gifSD(q, ph) * grow;
 
-  float body  = smoothstep(0.045, -0.16, sd);              // defined (but soft) silhouette — no bright edge stripe
-  float reach = 0.24 + 0.30*var;                           // how deep the accent bleeds in (uneven)
-  float inner = smoothstep(0.06, -reach, sd);              // 0 at the edge -> 1 past the accent zone
-  float deep  = smoothstep(-0.12, -0.40, sd);              // the bright middle
+  float body = smoothstep(0.045, -0.16, sd);                     // defined, soft silhouette
+  float deep = smoothstep(-0.08, -0.34, sd);                     // white-hot core
+  float fl   = 0.65 + 0.35*sin(dir*t*2.6 + vSign*1.9) + 0.25*noise(vec3(q*3.0, t*0.8)); // flicker
 
-  vec3 edgeCol = mix(vec3(0.42,0.55,1.15), accent, 0.70 + 0.30*side);
-  vec3 midCol  = vec3(0.28,0.46,1.10);
-  vec3 coreCol = vec3(0.80,0.88,1.15);
-  vec3 fill = mix(edgeCol, midCol, inner);                 // accent blends into the blue
-  fill = mix(fill, coreCol, deep*0.38);                    // blue blends into the bright core
+  vec3 blue  = vec3(0.16, 0.32, 1.10);
+  vec3 white = vec3(0.95, 0.97, 1.20);
+  // white-hot core runs as a continuous streak along the middle (like the flame ribbon),
+  // not as a hot spot in each lobe
+  float spine = exp(-pow(q.y/0.075, 2.0)) * smoothstep(0.0, -0.12, sd);
+  vec3 fill  = mix(blue, white, clamp(spine*0.75 + deep*0.12, 0.0, 1.0));
+  vec3 col = fill * body * (1.0 + 0.45*dr);
 
-  float glowEdge = 0.92 + 0.22*var;                        // gentle brightness variation, no edge spike
-  vec3 col = fill * body * glowEdge * (0.86 + 0.30*dr);
-  float halo = smoothstep(-0.06, 0.04, sd) * exp(-max(sd, 0.0)*7.0);
-  col += accent * halo * (0.24 + 0.22*dr) * (0.55 + 0.45*var);   // soft coloured bloom outside
+  // vivid warm flares that sit on the blob's ACTUAL left & right ends at every moment of the
+  // morph (found from which way the edge faces), bright like the flame's licks — never a dim haze
+  // is this point on the blob's left/right END? step outward sideways (away from the centre):
+  // if that quickly leaves the blob, we're at an end. Robust — no fragile edge-direction maths.
+  float sOut = gifSD(q + vec2(sign(q.x)*0.08, 0.0), ph);
+  float ends = smoothstep(0.35, 0.85, (sOut - gifSD(q, ph)) / 0.08);
+  ends *= smoothstep(0.03, 0.14, abs(q.x));                       // fade out at the centre line (no seam)
+  float band  = exp(-pow((sd + 0.02)/0.095, 2.0));                // hugging the edge, soft
+  vec3  hot   = mix(accent, vec3(1.15, 1.00, 0.85), 0.25);        // a touch of white heat
+  col += hot * ends * band * fl * (1.10 + 0.50*dr);
+  float halo = smoothstep(-0.06, 0.04, sd) * exp(-max(sd, 0.0)*6.0);
+  col += blue * halo * (1.0 - ends) * 0.30;                      // cool bloom around the rest
+
+  float below = smoothstep(0.0, -0.9, d.y - cen.y) * smoothstep(1.05, 0.2, abs(d.x));
+  col += vec3(0.10, 0.22, 0.85) * below * 0.26;                  // blue pooling in the lower glass
   return col;
 }
 
@@ -181,8 +194,8 @@ void main(){
     float energy = uChurn + uDrive;
 
     // ---- two blobs of light, out of phase: when one has its left lobe big the other has its right ----
-    vec3 col  = blob(d, uPhase,            uDrive,     vec3(1.05,0.55,0.16),  1.0);        // blue + yellow
-    col      += blob(d, uPhase + 3.14159,  uDrive*0.9, vec3(0.66,0.30,1.15), -1.0) * 0.85; // blue + purple
+    vec3 col  = blob(d, uPhase,            uDrive,     vec3(1.05,0.55,0.16),  1.0,  1.0);        // blue + yellow, travels one way
+    col      += blob(d, uPhase + 3.14159,  uDrive*0.9, vec3(0.90,0.30,1.05), -1.0, -1.0) * 0.85; // blue + magenta-pink, the other way
     col += vec3(0.16,0.22,0.80) * smoothstep(0.98,0.45,d.y) * 0.05;         // faint cool cap up top
     col *= (0.95 + 0.45*uDrive + 0.2*uChurn);
     col = min(col, vec3(1.3));
@@ -338,6 +351,7 @@ void main(){
   }
 
   let t0=performance.now(), running=false, lastT=0;
+  const FREEZE=(()=>{ const v=new URLSearchParams(location.search).get('phase'); return v===null?null:parseFloat(v); })();
   function frame(now){
     if(!running) return;
     const t=(now-t0)/1000;
@@ -363,6 +377,7 @@ void main(){
     gl.uniform1f(U.drive, drive);
     gl.uniform1f(U.churn, P.churn);
     gl.uniform1f(U.hue, P.hue);
+    if(FREEZE!==null) P.phase=FREEZE;                 // test switch: ?phase=1.2 freezes the morph
     gl.uniform1f(U.phase, P.phase);
     if(sdfReady) gl.drawArrays(gl.TRIANGLES,0,3);
     requestAnimationFrame(frame);
