@@ -143,26 +143,26 @@ vec3 blob(vec2 d, float ph, float dr, vec3 accent, float vSign){
   // ---- colour as ONE continuous gradient (no inner boundary): the accent at the edge
   //      bleeds inward into blue, then into the bright core. How far it reaches varies. ----
   float nv   = noise(vec3(q*2.6, uTime*0.18 + vSign*3.0));
-  float nv2  = noise(vec3(q*5.3 + 7.1, uTime*0.27 - vSign*2.0));
+  float nv2  = noise(vec3(q*3.6 + 7.1, uTime*0.27 - vSign*2.0));     // larger-scale: no mottling
   float wv   = 0.5 + 0.5*sin(q.x*4.0 - q.y*3.0 + uTime*0.35 + vSign*1.7);
   float var  = smoothstep(0.15, 0.85, clamp(mix(mix(nv, wv, 0.5), nv2, 0.35), 0.0, 1.0));
   float side = smoothstep(0.0, 0.5, abs(q.x));            // accent strongest toward the lobe ends
 
-  float body  = smoothstep(0.16, -0.42, sd);               // VERY soft falloff: no edge to read as a line
+  float body  = smoothstep(0.045, -0.16, sd);              // defined (but soft) silhouette — no bright edge stripe
   float reach = 0.24 + 0.30*var;                           // how deep the accent bleeds in (uneven)
   float inner = smoothstep(0.06, -reach, sd);              // 0 at the edge -> 1 past the accent zone
-  float deep  = smoothstep(-0.16, -0.46, sd);              // the bright middle
+  float deep  = smoothstep(-0.12, -0.40, sd);              // the bright middle
 
   vec3 edgeCol = mix(vec3(0.42,0.55,1.15), accent, 0.70 + 0.30*side);
   vec3 midCol  = vec3(0.28,0.46,1.10);
   vec3 coreCol = vec3(0.80,0.88,1.15);
   vec3 fill = mix(edgeCol, midCol, inner);                 // accent blends into the blue
-  fill = mix(fill, coreCol, deep*0.55);                    // blue blends into the bright core
+  fill = mix(fill, coreCol, deep*0.38);                    // blue blends into the bright core
 
   float glowEdge = 0.92 + 0.22*var;                        // gentle brightness variation, no edge spike
-  vec3 col = fill * body * glowEdge * (1.10 + 0.30*dr);
-  float halo = smoothstep(-0.10, 0.06, sd) * exp(-max(sd, 0.0)*5.0);
-  col += accent * halo * (0.16 + 0.20*dr) * (0.55 + 0.45*var);   // faint coloured bloom outside
+  vec3 col = fill * body * glowEdge * (0.86 + 0.30*dr);
+  float halo = smoothstep(-0.06, 0.04, sd) * exp(-max(sd, 0.0)*7.0);
+  col += accent * halo * (0.24 + 0.22*dr) * (0.55 + 0.45*var);   // soft coloured bloom outside
   return col;
 }
 
