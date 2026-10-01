@@ -140,24 +140,29 @@ vec3 blob(vec2 d, float ph, float dr, vec3 accent, float vSign){
   vec2 cen   = vec2(0.0, vSign*0.08*dr);            // sound nudges one blob up, the other down
   vec2 q     = (d - cen) / grow;
   float sd   = gifSD(q, ph) * grow;
-  float body = smoothstep(0.05, -0.18, sd);         // filled glow (not a hollow ring)
-  float core = smoothstep(-0.02, -0.30, sd);        // broad, brighter interior
-  // soft luminous edge whose WIDTH and brightness vary around the outline (and drift slowly)
+  // ---- colour as ONE continuous gradient (no inner boundary): the accent at the edge
+  //      bleeds inward into blue, then into the bright core. How far it reaches varies. ----
   float nv   = noise(vec3(q*2.6, uTime*0.18 + vSign*3.0));
-  float nv2  = noise(vec3(q*5.3 + 7.1, uTime*0.27 - vSign*2.0));          // second, finer variation
+  float nv2  = noise(vec3(q*5.3 + 7.1, uTime*0.27 - vSign*2.0));
   float wv   = 0.5 + 0.5*sin(q.x*4.0 - q.y*3.0 + uTime*0.35 + vSign*1.7);
-  float var  = clamp(mix(mix(nv, wv, 0.5), nv2, 0.35), 0.0, 1.0);
-  var = smoothstep(0.15, 0.85, var);                                       // push further apart: more uneven
-  float rimW = 0.045 + 0.10*var;                       // never razor-thin; broad in places
-  float lit  = 0.15 + 0.85*var*var;                    // thin parts fade almost away, broad parts glow
-  float rim  = exp(-pow((sd + 0.012)/rimW, 2.0)) * lit;
-  float halo = smoothstep(-0.04, 0.03, sd) * exp(-max(sd, 0.0)*9.0);
-  float side = smoothstep(0.0, 0.5, abs(q.x));      // accent colour toward the lobe ends
-  vec3 col = vec3(0.24,0.40,1.08) * body * 0.85;
-  col += vec3(0.80,0.88,1.15) * core * 0.30;
-  col += mix(vec3(0.40,0.58,1.15), accent, 0.65 + 0.35*side) * rim * (0.50 + 0.36*dr);
-  col += accent * halo * (0.34 + 0.25*dr);
-  col += accent * body * side * 0.22;               // accent tint washes into the lobe ends
+  float var  = smoothstep(0.15, 0.85, clamp(mix(mix(nv, wv, 0.5), nv2, 0.35), 0.0, 1.0));
+  float side = smoothstep(0.0, 0.5, abs(q.x));            // accent strongest toward the lobe ends
+
+  float body  = smoothstep(0.16, -0.42, sd);               // VERY soft falloff: no edge to read as a line
+  float reach = 0.24 + 0.30*var;                           // how deep the accent bleeds in (uneven)
+  float inner = smoothstep(0.06, -reach, sd);              // 0 at the edge -> 1 past the accent zone
+  float deep  = smoothstep(-0.16, -0.46, sd);              // the bright middle
+
+  vec3 edgeCol = mix(vec3(0.42,0.55,1.15), accent, 0.70 + 0.30*side);
+  vec3 midCol  = vec3(0.28,0.46,1.10);
+  vec3 coreCol = vec3(0.80,0.88,1.15);
+  vec3 fill = mix(edgeCol, midCol, inner);                 // accent blends into the blue
+  fill = mix(fill, coreCol, deep*0.55);                    // blue blends into the bright core
+
+  float glowEdge = 0.92 + 0.22*var;                        // gentle brightness variation, no edge spike
+  vec3 col = fill * body * glowEdge * (1.10 + 0.30*dr);
+  float halo = smoothstep(-0.10, 0.06, sd) * exp(-max(sd, 0.0)*5.0);
+  col += accent * halo * (0.16 + 0.20*dr) * (0.55 + 0.45*var);   // faint coloured bloom outside
   return col;
 }
 
