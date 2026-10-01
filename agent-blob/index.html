@@ -144,14 +144,18 @@ vec3 blob(vec2 d, float ph, float dr, vec3 accent, float vSign){
   float core = smoothstep(-0.02, -0.30, sd);        // broad, brighter interior
   // soft luminous edge whose WIDTH and brightness vary around the outline (and drift slowly)
   float nv   = noise(vec3(q*2.6, uTime*0.18 + vSign*3.0));
+  float nv2  = noise(vec3(q*5.3 + 7.1, uTime*0.27 - vSign*2.0));          // second, finer variation
   float wv   = 0.5 + 0.5*sin(q.x*4.0 - q.y*3.0 + uTime*0.35 + vSign*1.7);
-  float rimW = 0.028 + 0.075*mix(nv, wv, 0.5);        // thin in places, broad in others
-  float rim  = exp(-pow((sd + 0.01)/rimW, 2.0)) * (0.45 + 0.55*mix(wv, nv, 0.4));
+  float var  = clamp(mix(mix(nv, wv, 0.5), nv2, 0.35), 0.0, 1.0);
+  var = smoothstep(0.15, 0.85, var);                                       // push further apart: more uneven
+  float rimW = 0.045 + 0.10*var;                       // never razor-thin; broad in places
+  float lit  = 0.15 + 0.85*var*var;                    // thin parts fade almost away, broad parts glow
+  float rim  = exp(-pow((sd + 0.012)/rimW, 2.0)) * lit;
   float halo = smoothstep(-0.04, 0.03, sd) * exp(-max(sd, 0.0)*9.0);
   float side = smoothstep(0.0, 0.5, abs(q.x));      // accent colour toward the lobe ends
   vec3 col = vec3(0.24,0.40,1.08) * body * 0.85;
   col += vec3(0.80,0.88,1.15) * core * 0.30;
-  col += mix(vec3(0.40,0.58,1.15), accent, 0.65 + 0.35*side) * rim * (0.46 + 0.36*dr);
+  col += mix(vec3(0.40,0.58,1.15), accent, 0.65 + 0.35*side) * rim * (0.50 + 0.36*dr);
   col += accent * halo * (0.34 + 0.25*dr);
   col += accent * body * side * 0.22;               // accent tint washes into the lobe ends
   return col;
