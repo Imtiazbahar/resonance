@@ -108,7 +108,7 @@ float sdRoundCone(vec3 p, vec3 a, vec3 b, float r1, float r2){
   return (sqrt(x2*a2*il2) + y*rr)*il2 - r1;
 }
 float arm(vec3 p, vec3 dir, float len){
-  return sdRoundCone(p, vec3(0.0), dir*len, 0.20, 0.095);
+  return sdRoundCone(p, vec3(0.0), dir*len, 0.235, 0.115);   // wide base, rounded tip: lobe-like, not a tube
 }
 
 // the shape in OBJECT space: soft core + 8 arms (4 tetrapod + 4 that grow out with sound)
@@ -116,7 +116,7 @@ float shapeObj(vec3 p){
   // squishy, jelly-like wobble of the whole surface (slow & low so it stays soft)
   p += uSquish * 0.035 * sin(p.yzx*3.1 + uTime*vec3(1.10, 1.30, 0.90));
   float d = length(p) - 0.36;
-  const float K = 0.17;                         // big blend = soft, rounded joints
+  const float K = 0.23;                         // big blend = soft, rounded joints
   const float s = 0.57735;
   d = smin(d, arm(p, vec3( s,  s,  s), uArm[0]), K);   // tetrahedron
   d = smin(d, arm(p, vec3( s, -s, -s), uArm[1]), K);
@@ -371,7 +371,7 @@ void main(){
       const want = bands ? bands[i]*P.drive : 0;
       arms[i] = ease(arms[i], want, want > arms[i] ? 0.30 : 0.07, dt);
       const breathe = 0.03*Math.sin(t*0.8 + i*1.7);
-      armLen[i] = i < 4 ? 0.78 + breathe + 0.30*arms[i]          // tetrapod arms: always out, reach further
+      armLen[i] = i < 4 ? 0.56 + breathe + 0.50*arms[i]          // tetrapod arms: short soft lobes at rest, reach out with sound
                         : 0.12 + 0.88*arms[i];                    // extra arms: hidden in the core until sound pulls them out
     }
 
