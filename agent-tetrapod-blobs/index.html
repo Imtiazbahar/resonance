@@ -112,7 +112,8 @@ float arm(vec3 p, vec3 dir, float len){
   return sdRoundCone(p, vec3(0.0), dir*len, 0.235, 0.115);   // wide base, rounded tip: lobe-like, not a tube
 }
 
-float blob(vec3 p, vec3 dir, float dist){ return length(p - dir*dist) - (0.12 + 0.02*smoothstep(0.5, 1.0, dist)); }
+// blob size: min 0.065 (half the old size) when it first pinches off, max 0.087 (2/3 the old size) when it's flung furthest
+float blob(vec3 p, vec3 dir, float dist){ return length(p - dir*dist) - mix(0.065, 0.087, smoothstep(0.6, 1.15, dist)); }
 
 // the shape in OBJECT space: soft core + 8 arms (4 tetrapod + 4 that grow out with sound)
 float shapeObj(vec3 p){
@@ -131,7 +132,7 @@ float shapeObj(vec3 p){
   d = smin(d, arm(p, vec3( s,  s, -s), uArm[7]), K);
   // a blob rides out along each arm: close to the tip it's part of the arm (stretchy neck),
   // further out the smooth blend can no longer reach and it separates into its own drop
-  const float KB = 0.14;
+  const float KB = 0.19;                        // larger blend = longer, stretchier neck before it snaps
   d = smin(d, blob(p, vec3( s,  s,  s), uBlob[0]), KB);
   d = smin(d, blob(p, vec3( s, -s, -s), uBlob[1]), KB);
   d = smin(d, blob(p, vec3(-s,  s, -s), uBlob[2]), KB);
