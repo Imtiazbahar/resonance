@@ -113,7 +113,7 @@ float arm(vec3 p, vec3 dir, float len){
 }
 
 // blob size: min 0.065 (half the old size) when it first pinches off, max 0.087 (2/3 the old size) when it's flung furthest
-float blob(vec3 p, vec3 dir, float dist){ return length(p - dir*dist) - mix(0.065, 0.087, smoothstep(0.6, 1.0, dist)); }
+float blob(vec3 p, vec3 dir, float dist){ return length(p - dir*dist) - mix(0.065, 0.087, smoothstep(0.55, 0.72, dist)); }
 
 // the shape in OBJECT space: soft core + 8 arms (4 tetrapod + 4 that grow out with sound)
 float shapeObj(vec3 p){
@@ -384,9 +384,13 @@ void main(){
       const want = bands ? bands[i]*P.drive : 0;
       arms[i] = ease(arms[i], want, want > arms[i] ? 0.30 : 0.07, dt);
       const breathe = 0.03*Math.sin(t*0.8 + i*1.7);
-      armLen[i] = i < 4 ? 0.50 + breathe + 0.08*arms[i]          // tetrapod arms: only grow very slightly with sound...
-                        : 0.12 + 0.40*arms[i];                    // extra arms: emerge a little from the core
-      blobD[i] = armLen[i] - 0.03 + 0.45*Math.pow(arms[i], 0.6);  // ...instead a blob stretches out and pinches off
+      // the arm's tip becomes the blob: as sound rises the arm grows very slightly, then draws back
+      // while its tip moves only a short way out, so the neck stretches and the drop pinches off close to the body
+      const a = arms[i], pull = Math.min(1, Math.max(0, (a - 0.2)/0.6));
+      const pullS = pull*pull*(3 - 2*pull);
+      const rest = i < 4 ? 0.50 + breathe : 0.12;
+      armLen[i] = rest + (i < 4 ? 0.08 : 0.36)*a - 0.26*pullS;
+      blobD[i]  = rest - 0.03 + (i < 4 ? 0.08 : 0.36)*a + 0.15*Math.pow(a, 0.6);
     }
 
     // slow spin around its own vertical axis, viewed slightly from above with a gentle nod
