@@ -284,9 +284,9 @@ void main(){
   // spin = turns per second (radians), churn = autonomous motion, drive = how strongly sound moves it
   const STATES = {
     idle:      { name:'Idle',      hint:'Waiting for you',                          spin:0.22, churn:0.15, drive:0.0 },
-    listening: { name:'Listening', hint:'Speak — the arms reach out to your voice', spin:0.30, churn:0.20, drive:1.0 },
+    listening: { name:'Listening', hint:'Speak — the arms reach out to your voice', spin:1.10, churn:0.20, drive:1.0 },
     thinking:  { name:'Thinking',  hint:'Processing',                               spin:0.75, churn:0.80, drive:0.0 },
-    speaking:  { name:'Speaking',  hint:'Agent is responding',                      spin:0.35, churn:0.30, drive:0.85 }
+    speaking:  { name:'Speaking',  hint:'Agent is responding',                      spin:1.10, churn:0.30, drive:0.85 }
   };
   let state = 'idle';
   const P = { spin:0.22, churn:0.15, drive:0, level:0, yaw:0, gather:1 };
