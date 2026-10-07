@@ -284,12 +284,12 @@ void main(){
   // spin = turns per second (radians), churn = autonomous motion, drive = how strongly sound moves it
   const STATES = {
     idle:      { name:'Idle',      hint:'Waiting for you',                          spin:0.22, churn:0.15, drive:0.0 },
-    listening: { name:'Listening', hint:'Speak — the arms reach out to your voice', spin:0.30, churn:0.20, drive:1.0 },
+    listening: { name:'Listening', hint:'Speak — the arms reach out to your voice', spin:1.10, churn:0.20, drive:1.0 },
     thinking:  { name:'Thinking',  hint:'Processing',                               spin:0.75, churn:0.80, drive:0.0 },
     speaking:  { name:'Speaking',  hint:'Agent is responding',                      spin:1.10, churn:0.30, drive:0.85 }
   };
   let state = 'idle';
-  const P = { spin:0.22, churn:0.15, drive:0, level:0, yaw:0, gather:1, listenSpin:0.22 };
+  const P = { spin:0.22, churn:0.15, drive:0, level:0, yaw:0, gather:1 };
   const arms = new Float32Array(8);          // smoothed per-arm sound level 0..1
   const armLen = new Float32Array(8);
   const blobD = new Float32Array(8);
@@ -418,16 +418,7 @@ void main(){
     }
 
     // slow spin around its own vertical axis, viewed slightly from above with a gentle nod
-    // Listening: the spin follows the voice, from ~21 s per turn in silence up to a
-    // hard cap of one turn every 6 s at full voice. Other states keep their own speed.
-    if(state === 'listening'){
-      const LISTEN_MAX = Math.PI*2/6;                            // 6 seconds per turn
-      P.listenSpin = ease(P.listenSpin, S.spin + (LISTEN_MAX - S.spin)*Math.min(1, P.level*1.2), 0.05, dt);
-      P.yaw += dt*Math.min(LISTEN_MAX, P.listenSpin);
-    } else {
-      P.listenSpin = P.spin;
-      P.yaw += dt*(P.spin + drive*0.3);
-    }
+    P.yaw += dt*(P.spin + drive*0.3);   // listening and speaking: same fast base spin, a little faster when loud
     const pitch = 0.42 + 0.12*Math.sin(t*0.13), cy = Math.cos(P.yaw), sy = Math.sin(P.yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
     // R = Rx(pitch)*Ry(yaw), row-major; passed as-is it becomes R^T in GLSL (world -> object)
     rot.set([ cy, 0, sy,   sp*sy, cp, -sp*cy,   -cp*sy, sp, cp*cy ]);
