@@ -279,11 +279,11 @@ void main(){
   }
 
   // the flame layer itself: march through the thin shell just above the surface
-  const float H = 0.10;                                   // how high the flames rise
+  const float H = 0.06;                                   // how high the flames rise
   float bq = dot(ro, rd), hb = bq*bq - (dot(ro, ro) - 1.35*1.35);
   if(hb > 0.0){
     float tt = -bq - sqrt(hb), tEnd = min(-bq + sqrt(hb), tHit);
-    float hL = 0.032*(1.0 + 0.9*uDrive);                  // flame height falls off over this distance
+    float hL = 0.017*(1.0 + 0.9*uDrive);                  // flame height falls off over this distance (kept low)
     for(int i = 0; i < 90; i++){
       if(tt > tEnd) break;
       vec3  p = ro + rd*tt;
