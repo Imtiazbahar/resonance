@@ -277,27 +277,28 @@ vec3 liquid(vec3 p, float rim){
 
   // a second, smaller flame that SPLITS off the main one: it follows the main line, peels away to a
   // small gap (above or below) as it appears, wobbles a little on its own, and merges back as it fades
+  vec3 c2 = vec3(0.0);   // the small flame's light: kept separate so sound doesn't touch it
   if(uWave2.z > 0.002){
     float ph2 = uWave2.x;
     float vis = smoothstep(0.0, 1.0, uWave2.z);
     float gap = uWave2.y * vis;                                         // signed: + above, - below
     // its own path: near the main flame's height, but its own lean and its own waves (it doesn't copy the big one)
     float surf2 = level + gap + uTilt2.x*p.x + uTilt2.y*p.z
-                + (0.04 + 0.03*uAct)*sin(p.x*4.3 + ph2*1.7 + 2.0) + 0.025*sin(p.z*3.3 - ph2*1.1 + 0.4);
+                + 0.05*sin(p.x*4.3 + ph2*1.7 + 2.0) + 0.025*sin(p.z*3.3 - ph2*1.1 + 0.4);   // fixed: doesn't react to sound
     float s2  = p.y - surf2;
     // it only reaches part of the way round at times: a soft-ended arc around the shape
     float ang  = atan(p.z, p.x);
     float da   = abs(mod(ang - uArc2.x + 3.14159265, 6.2831853) - 3.14159265);   // angle from the arc's centre
     float arc  = uArc2.y >= 3.1 ? 1.0 : smoothstep(uArc2.y, uArc2.y - 0.9, da);  // soft fading ends
-    float ln2 = flameLine(s2, w*0.6, p, ph2, 5.0) * arc;
+    float ln2 = flameLine(s2, 0.0096, p, ph2, 5.0) * arc;                        // fixed width (no sound)
     float bl2 = (s2 < 0.0 ? exp(s2/0.035) : 0.0) * arc;
     float lk2 = (s2 > 0.0 ? exp(-s2/0.14) * wall : 0.0) * arc;
-    gCore += ln2*edge*0.6*uWave2.z;
-    c += (vec3(1.0, 0.97, 0.92)*ln2*(1.0 + 0.8*rim)
+    c2 = (vec3(1.0, 0.97, 0.92)*ln2*(1.0 + 0.8*rim)
         + vec3(0.18, 0.50, 1.10)*bl2*(0.6 + 0.8*rim)
         + warm*lk2*1.6) * uWave2.z;
   }
-  return c * (0.70 + 0.30*uAct + 0.6*uDrive);                           // softer at idle
+  // main flame: softer at idle, brighter with the voice; small flame: always the same, and fainter
+  return c * (0.70 + 0.30*uAct + 0.6*uDrive) + c2 * 0.40;
 }
 
 void main(){
@@ -566,11 +567,11 @@ void main(){
                   P.w2Lean = (Math.random() < 0.5 ? -1 : 1)*(0.07 + 0.07*Math.random()); }   // split gap: above or below
     }
     P.w2Vis   = ease(P.w2Vis, P.w2On ? 1 : 0, P.w2On ? 0.03 : 0.02, dt);
-    P.w2Ph   += dt*1.35*pace*(0.6 + 0.4*P.act)*(1.0 + 1.0*drive);
+    P.w2Ph   += dt*1.35*pace*0.75;                                      // its own steady pace: sound doesn't speed it up
     P.w2Tilt  = P.w2On ? ease(P.w2Tilt, P.w2Lean, 0.05, dt) : P.w2Tilt;   // keep the side while it merges back
     gl.uniform3f(UL.wave2, P.w2Ph, P.w2Tilt, P.w2Vis);
     // the second flame leans its own way: a fresh random lean each time it appears, drifting now and then
-    if(t >= P.t2Next){ P.t2Tx = (Math.random()*2 - 1)*(0.20 + 0.25*P.act); P.t2Tz = (Math.random()*2 - 1)*0.15;
+    if(t >= P.t2Next){ P.t2Tx = (Math.random()*2 - 1)*0.30; P.t2Tz = (Math.random()*2 - 1)*0.15;
                        P.t2Next = t + 1.5 + Math.random()*2.5; }
     P.t2X = ease(P.t2X, P.t2Tx, 0.025, dt); P.t2Z = ease(P.t2Z, P.t2Tz, 0.025, dt);
     gl.uniform2f(UL.tilt2, P.t2X, P.t2Z);
