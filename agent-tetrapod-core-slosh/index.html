@@ -96,6 +96,7 @@ uniform float uSlosh;     // slosh phase: advances at an uneven, organic pace
 uniform vec2  uTilt;      // random lean of the flame: x = left/right, y = front/back
 uniform float uAct;       // 0 = idle (soft, slow), 1 = listening / speaking (lively)
 uniform float uThink;     // 1 = thinking: the warm glow turns green
+uniform vec3  uWave2;     // second, smaller flame wave: x = its slosh phase, y = its lean, z = how visible (fades in and out)
 uniform float uGather;    // 1 = beams gathered into a sphere of energy at the centre, 0 = spread through the body
 
 // ---------------------------------------------------------------- shape ----
@@ -256,6 +257,20 @@ vec3 liquid(vec3 p, float rim){
   vec3 c = vec3(1.0, 0.97, 0.92)*line*(1.8 + 1.4*rim)
          + vec3(0.18, 0.50, 1.10)*blue*(1.1 + 1.4*rim)*1.5
          + warm*lick*4.4;
+
+  // a second, smaller flame wave that turns up from time to time, moving and leaning on its own
+  if(uWave2.z > 0.002){
+    float ph2 = uWave2.x;
+    float lv2 = (0.24 + 0.06*sin(ph2*0.53 + 1.0))*sin(ph2 + 0.4*sin(ph2)) + 0.03;
+    float s2  = p.y - (lv2 + uWave2.y*p.x + 0.05*sin(p.x*3.4 - f*2.1 + 1.7) + 0.02*sin(p.z*5.0 + f*1.4));
+    float ln2 = exp(-pow(s2/(w*0.6), 2.0));
+    float bl2 = s2 < 0.0 ? exp(s2/0.035) : 0.0;
+    float lk2 = s2 > 0.0 ? exp(-s2/0.14) * wall : 0.0;
+    gCore += ln2*edge*0.6*uWave2.z;
+    c += (vec3(1.0, 0.97, 0.92)*ln2*(1.0 + 0.8*rim)
+        + vec3(0.18, 0.50, 1.10)*bl2*(0.6 + 0.8*rim)
+        + warm*lk2*1.6) * uWave2.z;
+  }
   return c * (0.70 + 0.30*uAct + 0.6*uDrive);                           // softer at idle
 }
 
@@ -326,6 +341,7 @@ void main(){
 <script>
 (() => {
   "use strict";
+  const W2_TEST = new URLSearchParams(location.search).get('wave2') === 'on';
   const canvas = document.getElementById('orb');
   const gl = canvas.getContext('webgl', { alpha:true, premultipliedAlpha:true, antialias:true });
 
@@ -338,7 +354,8 @@ void main(){
   };
   let state = 'idle';
   const P = { spin:0.22, churn:0.15, drive:0, level:0, yaw:0, gather:1, flow:0, slosh:0, act:0, think:0,
-                tiltX:0, tiltZ:0, tiltTx:0, tiltTz:0, tiltNext:1.5 };
+                tiltX:0, tiltZ:0, tiltTx:0, tiltTz:0, tiltNext:1.5,
+                w2On:false, w2Next:3.0, w2Vis:0, w2Ph:2.0, w2Tilt:0, w2Lean:0 };
   const arms = new Float32Array(8);          // smoothed per-arm sound level 0..1
   const armLen = new Float32Array(8);
   const blobD = new Float32Array(8);
@@ -361,7 +378,7 @@ void main(){
   const UL = { center:U('uCenter'), radius:U('uRadius'), time:U('uTime'), drive:U('uDrive'), churn:U('uChurn'),
                squish:U('uSquish'), rot:U('uRot'), arm:U('uArm[0]'), blob:U('uBlob[0]'), gather:U('uGather'),
                flow:U('uFlow'), slosh:U('uSlosh'),
-               tilt:U('uTilt'), act:U('uAct'), think:U('uThink') };
+               tilt:U('uTilt'), act:U('uAct'), think:U('uThink'), wave2:U('uWave2') };
 
   // ---- sizing ----
   let cxDev=0, cyDev=0, radDev=0;
@@ -512,6 +529,18 @@ void main(){
     gl.uniform2f(UL.tilt, P.tiltX, P.tiltZ);
     gl.uniform1f(UL.act, P.act);
     gl.uniform1f(UL.think, P.think);
+    // the second, smaller wave: appears at random moments (more often when listening / speaking),
+    // stays a few seconds, fades away; it sloshes a bit quicker and leans on its own
+    if(W2_TEST){ P.w2On = true; P.w2Next = 1e9; }          // design QA: ?wave2=on keeps the second wave showing
+    if(t >= P.w2Next){
+      if(P.w2On){ P.w2On = false; P.w2Next = t + (3.0 + Math.random()*6.0)*(1.3 - 0.5*P.act); }
+      else      { P.w2On = true;  P.w2Next = t + 2.0 + Math.random()*3.0;
+                  P.w2Lean = (Math.random()*2 - 1)*(0.20 + 0.25*P.act); }
+    }
+    P.w2Vis   = ease(P.w2Vis, P.w2On ? 1 : 0, P.w2On ? 0.03 : 0.02, dt);
+    P.w2Ph   += dt*1.35*pace*(0.6 + 0.4*P.act)*(1.0 + 1.0*drive);
+    P.w2Tilt  = ease(P.w2Tilt, P.w2Lean, 0.02, dt);
+    gl.uniform3f(UL.wave2, P.w2Ph, P.w2Tilt, P.w2Vis);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     requestAnimationFrame(frame);
   }
