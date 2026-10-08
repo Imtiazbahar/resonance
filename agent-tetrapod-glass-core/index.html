@@ -94,6 +94,7 @@ uniform float uSquish;    // jelly wobble amount
 uniform mat3  uRot;       // shape rotation (world -> object)
 uniform float uGather;    // 1 = beams gathered into a sphere of energy at the centre, 0 = spread through the body
 uniform float uArm[8];    // arm lengths: 0-3 = tetrapod arms, 4-7 = the extra octopod arms
+uniform vec4  uDrop;      // idle drop: object-space centre + radius (0 = none)
 
 // ---------------------------------------------------------------- shape ----
 float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5*(b - a)/k, 0.0, 1.0); return mix(b, a, h) - k*h*(1.0 - h); }
@@ -127,6 +128,8 @@ float shapeObj(vec3 p){
   d = smin(d, arm(p, vec3(-s,  s,  s), uArm[5]), K);
   d = smin(d, arm(p, vec3( s, -s,  s), uArm[6]), K);
   d = smin(d, arm(p, vec3( s,  s, -s), uArm[7]), K);
+  // idle: a small drop buds off a main arm, circles the body and merges back into that arm
+  if(uDrop.w > 0.0) d = smin(d, length(p - uDrop.xyz) - uDrop.w, 0.10);
   return d;
 }
 float map(vec3 p){ return shapeObj(uRot * p); }
@@ -295,7 +298,7 @@ void main(){
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);   // premultiplied
   const U = n => gl.getUniformLocation(prog, n);
   const UL = { center:U('uCenter'), radius:U('uRadius'), time:U('uTime'), drive:U('uDrive'), churn:U('uChurn'),
-               squish:U('uSquish'), rot:U('uRot'), arm:U('uArm[0]'), gather:U('uGather') };
+               squish:U('uSquish'), drop:U('uDrop'), rot:U('uRot'), arm:U('uArm[0]'), gather:U('uGather') };
 
   // ---- sizing ----
   let cxDev=0, cyDev=0, radDev=0;
@@ -370,6 +373,32 @@ void main(){
   // ---- render loop ----
   let t0=performance.now(), last=0, running=false;
   const rot = new Float32Array(9);
+  // ---- idle sign of life: every few seconds at rest a small drop buds off one of the four main
+  // arms, circles the body (on a path that threads between the other arms) and merges back
+  // into the arm it came from. Same maths as the agent_orb package (web + Flutter).
+  const DROP_TRIP = 7, DS = 0.57735, DARMS = [[DS,DS,DS],[DS,-DS,-DS],[-DS,DS,-DS],[-DS,-DS,DS]];
+  const DR = { wait: 1.5 + Math.random()*2, u: -1, i: 0, a: null, v: null };
+  function dropStep(dt){
+    if(DR.u < 0){
+      if(state === 'idle') DR.wait -= dt;
+      if(DR.wait > 0) return null;
+      DR.i = Math.floor(Math.random()*4);
+      const o = [0,1,2,3].filter(k => k !== DR.i).sort(() => Math.random() - 0.5);
+      const b1 = DARMS[o[0]], b2 = DARMS[o[1]], n = 1/(2*DS*Math.SQRT2);   // b1 - b2 is perpendicular to the arm
+      DR.a = DARMS[DR.i]; DR.v = [(b1[0]-b2[0])*n, (b1[1]-b2[1])*n, (b1[2]-b2[2])*n];
+      DR.u = 0;
+    }
+    DR.u += dt/DROP_TRIP;
+    if(DR.u >= 1){ DR.u = -1; DR.wait = 3 + Math.random()*4; return null; }
+    const ss = x => x*x*(3 - 2*x), OUT = 0.34, L = armLen[DR.i], u = DR.u;
+    let r, th, w;
+    if(u < 0.2){ const e = ss(u/0.2); r = L + OUT*e; th = 0; w = 0.06 + 0.015*e; }
+    else if(u < 0.8){ const k = ss((u - 0.2)/0.6); th = 2*Math.PI*k; r = L + OUT + 0.04*Math.sin(Math.PI*k); w = 0.075; }
+    else { const e = ss((u - 0.8)/0.2); r = L + OUT*(1 - e); th = 0; w = 0.075 - 0.015*e; }
+    const c = Math.cos(th), sn = Math.sin(th), a = DR.a, v = DR.v;
+    return [(a[0]*c + v[0]*sn)*r, (a[1]*c + v[1]*sn)*r, (a[2]*c + v[2]*sn)*r, w];
+  }
+
   function frame(now){
     if(!running) return;
     const t = (now - t0)/1000, dt = last ? Math.min(0.05, t - last) : 1/60; last = t;
@@ -416,6 +445,8 @@ void main(){
     gl.uniformMatrix3fv(UL.rot, false, rot);
     gl.uniform1fv(UL.arm, armLen);
     gl.uniform1f(UL.gather, P.gather);
+    const D = dropStep(dt);
+    gl.uniform4f(UL.drop, D ? D[0] : 0, D ? D[1] : 0, D ? D[2] : 0, D ? D[3] : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     requestAnimationFrame(frame);
   }
