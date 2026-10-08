@@ -217,7 +217,9 @@ vec3 env(vec3 r){
 // glow that is warm (amber/red) on one side and cool (violet/blue) on the other. They
 // curl with a little noise and drift around the body; with sound they move faster,
 // burn brighter and more of them appear.
+float gCore;   // white-hot amount from the last flames() call (used for the rising tongues)
 vec3 flames(vec3 po){
+  gCore = 0.0;
   vec3 n = normalize(po);
   float f = uFlow;
   vec3 c = vec3(0.0);
@@ -238,6 +240,7 @@ vec3 flames(vec3 po){
     vec3 warm = k == 1 ? vec3(1.00, 0.30, 0.40) : vec3(1.00, 0.50, 0.18);
     vec3 cool = k == 1 ? vec3(0.35, 0.50, 1.15) : vec3(0.62, 0.40, 1.10);
     c += (vec3(1.0, 0.95, 0.90)*core*3.0 + warm*warmT*1.5 + cool*coolT*1.6) * on;
+    gCore += core*on;
   }
   return c * (1.15 + 0.8*uDrive + 0.2*uChurn);
 }
@@ -259,27 +262,50 @@ void main(){
     if(t > 5.0) break;
   }
 
-  // flat black body (soft one-pixel edge) with flames of light flowing over its surface
+  // flat black body (soft one-pixel edge) with flames of light running ON TOP of its surface:
+  // the flames are a thin glowing layer that rises a little off the skin, so they lick over
+  // the outline and show against the background instead of being clipped by it
   float px = 1.02/uRadius;
-  float alpha = hit > 0.5 ? 1.0 : 1.0 - smoothstep(0.0, 1.5*px, minD);
-  vec3 col = vec3(0.0);
+  float bodyA = hit > 0.5 ? 1.0 : 1.0 - smoothstep(0.0, 1.5*px, minD);
+  float tHit = hit > 0.5 ? t : 1e9;
+
+  vec3 L = vec3(0.0);
+  // on the skin: the full flames — white-hot edges, soft warm/cool glow, a lit outline
   if(hit > 0.5){
-    vec3 p  = ro + rd*t;
-    vec3 N  = calcNormal(p);
-    float ndv = clamp(dot(N, -rd), 0.0, 1.0);
-    vec3 po = uRot*p;                                       // flames ride with the body as it turns
-    vec3 fl = flames(po);
+    vec3 p = ro + rd*t;
+    float ndv = clamp(dot(calcNormal(p), -rd), 0.0, 1.0);
     float rim = pow(1.0 - ndv, 2.5);
-    // light pools brighter where the surface turns away (the orb's glowing edge in the video)
-    col = fl*(0.70 + 2.6*rim) + vec3(0.62, 0.52, 1.05)*rim*(0.18 + 0.40*uDrive);   // flames light up the outline, as on the orb
-    col = 1.0 - exp(-col*1.3);                              // white-hot cores, never blown out
-  } else {
-    // a faint glow just outside the edge, coloured like the flames there
-    float g = exp(-max(minD, 0.0)/(0.02 + 0.03*uDrive)) * (0.15 + 0.45*uDrive);
-    col = vec3(0.75, 0.45, 0.95)*g;
-    alpha = max(alpha, clamp(g, 0.0, 1.0));
+    L += flames(uRot*p)*(0.70 + 1.6*rim) + vec3(0.62, 0.52, 1.05)*rim*(0.12 + 0.30*uDrive);
   }
-  gl_FragColor = vec4(col*alpha, alpha);                    // premultiplied
+
+  // the flame layer itself: march through the thin shell just above the surface
+  const float H = 0.10;                                   // how high the flames rise
+  float bq = dot(ro, rd), hb = bq*bq - (dot(ro, ro) - 1.35*1.35);
+  if(hb > 0.0){
+    float tt = -bq - sqrt(hb), tEnd = min(-bq + sqrt(hb), tHit);
+    float hL = 0.032*(1.0 + 0.9*uDrive);                  // flame height falls off over this distance
+    for(int i = 0; i < 90; i++){
+      if(tt > tEnd) break;
+      vec3  p = ro + rd*tt;
+      float d = map(p);
+      float st;
+      if(d < H){
+        st = 0.011;
+        vec3 po = uRot*p;
+        float flick = 0.75 + 0.5*noise(po*7.0 + vec3(0.0, uFlow*1.4, 0.0));   // tongues flicker in height
+        flames(po);                                       // only the white-hot edges rise off the skin
+        float hgt = max(d, 0.0)/(hL*flick);
+        vec3 tongue = mix(vec3(1.0, 0.96, 0.92), mix(vec3(1.0, 0.55, 0.25), vec3(0.65, 0.45, 1.1), 0.5 + 0.5*sin(po.y*4.0 + uFlow)), clamp(hgt, 0.0, 1.0));
+        L += tongue * gCore * exp(-hgt) * st * 11.0 * (1.0 + 0.8*uDrive);
+      } else {
+        st = max(d - H*0.6, 0.011);                       // skip quickly through empty space
+      }
+      tt += st;
+    }
+  }
+  L = 1.0 - exp(-L*1.3);                                  // white-hot cores, never blown out
+  float la = clamp(max(L.r, max(L.g, L.b)), 0.0, 1.0);
+  gl_FragColor = vec4(L, max(bodyA, la));                 // premultiplied: black body + light on top
 }
 </script>
 
