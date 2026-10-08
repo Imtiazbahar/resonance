@@ -207,9 +207,9 @@ vec2 raySeg(vec3 ro, vec3 rd, vec3 a, vec3 b){
 }
 
 // one stalk: a fine glowing filament from the core to `len`, ending in a seed-tuft bloom
-vec3 stalk(vec3 ro, vec3 rd, vec3 dirW, float len, float seed, float tCore, float energy){
-  if(len < RC + 0.03) return vec3(0.0);
-  vec3 a = dirW*RC*0.92, b = dirW*len;
+vec3 stalk(vec3 ro, vec3 rd, vec3 dirW, float start, float len, float seed, float tCore, float energy){
+  if(len < start + 0.02) return vec3(0.0);
+  vec3 a = dirW*(start - 0.02), b = dirW*len;
   vec2 f = raySeg(ro, rd, a, b);
   float fil = exp(-pow(f.x/FW, 2.0))*0.75 + exp(-pow(f.x/(FW*4.0), 2.0))*0.10;
   // the tuft (pappus): an umbrella of fine fibres of uneven length fanning out from the tip
@@ -240,6 +240,47 @@ vec3 stalk(vec3 ro, vec3 rd, vec3 dirW, float len, float seed, float tCore, floa
   return fCol*mix(1.0, 0.35, behindF) + bCol*mix(1.0, 0.35, behindB);
 }
 
+float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5*(b - a)/k, 0.0, 1.0); return mix(b, a, h) - k*h*(1.0 - h); }
+float sdRoundCone(vec3 p, vec3 a, vec3 b, float r1, float r2){
+  vec3 ba = b - a; float l2 = dot(ba, ba); float rr = r1 - r2; float a2 = l2 - rr*rr; float il2 = 1.0/l2;
+  vec3 pa = p - a; float y = dot(pa, ba); float z = y - l2;
+  vec3 xv = pa*l2 - ba*y; float x2 = dot(xv, xv); float y2 = y*y*l2; float z2 = z*z*l2;
+  float k = sign(rr)*rr*rr*x2;
+  if(sign(z)*a2*z2 > k) return sqrt(x2 + z2)*il2 - r2;
+  if(sign(y)*a2*y2 < k) return sqrt(x2 + y2)*il2 - r1;
+  return (sqrt(x2*a2*il2) + y*rr)*il2 - r1;
+}
+// how far stalk j has grown out with the voice (0 = folded away)
+float stalkAct(float j){
+  float act = clamp((uSpread*1.12 - h1(j + 1.3))/0.12, 0.0, 1.0);
+  return act*act*(3.0 - 2.0*act);
+}
+const float MB = 0.22;   // main stalks: the jelly base reaches RC + MB before thinning into a thread
+const float XB = 0.17;   // extra stalks: their (slimmer) bases, scaled by how far they've grown
+
+// ONE jelly body: the soft core with every stalk's thick base melted into it (object space)
+float bodySD(vec3 p){
+  p += 0.010*sin(p.yzx*6.0 + uTime*vec3(1.1, 1.3, 0.9));              // a slow jelly wobble
+  float d = length(p) - RC;
+  const float s3 = 0.57735;
+  d = smin(d, sdRoundCone(p, vec3(0.0), vec3( s3,  s3,  s3)*(RC + MB), 0.105, 0.010), 0.11);
+  d = smin(d, sdRoundCone(p, vec3(0.0), vec3( s3, -s3, -s3)*(RC + MB), 0.105, 0.010), 0.11);
+  d = smin(d, sdRoundCone(p, vec3(0.0), vec3(-s3,  s3, -s3)*(RC + MB), 0.105, 0.010), 0.11);
+  d = smin(d, sdRoundCone(p, vec3(0.0), vec3(-s3, -s3,  s3)*(RC + MB), 0.105, 0.010), 0.11);
+  if(uSpread > 0.002){
+    float j = sfNearest(normalize(p), NS);
+    float act = stalkAct(j);
+    // kept slimmer than the gap between neighbouring stalks, so each base melts in smoothly
+    if(act > 0.01) d = smin(d, sdRoundCone(p, vec3(0.0), sfDir(j, NS)*(RC + XB*act), 0.010 + 0.017*act, 0.008), 0.013*act + 0.002);
+  }
+  return d;
+}
+float mapW(vec3 p){ return bodySD(uRot*p); }
+vec3 bodyNormal(vec3 p){
+  const vec2 e = vec2(0.0015, -0.0015);
+  return normalize(e.xyy*mapW(p + e.xyy) + e.yyx*mapW(p + e.yyx) + e.yxy*mapW(p + e.yxy) + e.xxx*mapW(p + e.xxx));
+}
+
 float band(float j){
   float k = mod(j, 8.0);
   return k < 4.0 ? dot(uBandA, vec4(equal(vec4(k), vec4(0.0, 1.0, 2.0, 3.0))))
@@ -256,45 +297,62 @@ void main(){
                       uRot[0][1], uRot[1][1], uRot[2][1],
                       uRot[0][2], uRot[1][2], uRot[2][2]);   // transpose: object -> world
 
-  // ---- glass core (the seed head), with the energy inside ----
+  // ---- the jelly body: glass core + thick stalk bases, one shape, with the energy inside ----
   vec3 col = vec3(0.0); float alpha = 0.0;
-  float bq = dot(ro, rd), cq = dot(ro, ro) - RC*RC, hq = bq*bq - cq;
+  float bq = dot(ro, rd);
   float tCore = 1e9;
-  if(hq > 0.0){
-    tCore = -bq - sqrt(hq);
-    vec3 p = ro + rd*tCore;
-    vec3 N = normalize(p); vec3 V = -rd;
-    float ndv = clamp(dot(N, V), 0.0, 1.0);
-    float fres = 0.04 + 0.96*pow(1.0 - ndv, 3.0);
-    vec3 rdIn = refract(rd, N, 1.0/1.45);
-    float tOut = -dot(p, rdIn) + sqrt(max(dot(p, rdIn)*dot(p, rdIn) - dot(p, p) + RC*RC, 0.0));
-    vec3 glow = vec3(0.0);
-    float S = 0.36/RC;                       // energy was designed for a 0.36 core: scale to fit
-    for(int i = 0; i < 20; i++){
-      float tt = (float(i) + 0.5)/20.0*tOut;
-      vec3 q = uRot*(p + rdIn*tt);
-      glow += flameAt(q*S, (length(q) - RC)*S) * (tOut/20.0) * S * 1.15;
+  float energyB = clamp(uDrive*1.2 + 0.15*uChurn, 0.0, 1.0);
+  float BB = RC + MB + 0.05, hb0 = bq*bq - (dot(ro, ro) - BB*BB);
+  if(hb0 > 0.0){
+    float t = -bq - sqrt(hb0), tEnd = -bq + sqrt(hb0), hit = 0.0;
+    for(int i = 0; i < 64; i++){
+      float d = mapW(ro + rd*t);
+      if(d < 0.0008){ hit = 1.0; break; }
+      t += max(d*0.8, 0.002);
+      if(t > tEnd) break;
     }
-    glow = 1.0 - exp(-glow*1.5);
-    vec3 refl = env(reflect(rd, N));
-    vec3 L1 = normalize(vec3(-0.4, 0.8, 0.45));
-    float spec = pow(max(dot(N, normalize(L1 + V)), 0.0), 120.0)*1.3;
-    float rim  = pow(1.0 - ndv, 2.2);
-    col = glow*(1.0 - fres*0.6) + refl*fres*0.85 + vec3(spec) + vec3(0.30, 0.38, 0.95)*rim*0.35
-        + vec3(0.05, 0.07, 0.16)*(1.0 - exp(-tOut*1.6));
-    col = min(col, vec3(1.4));
-    alpha = max(clamp(0.10 + 0.20*(1.0 - exp(-tOut*1.2)) + fres*0.55, 0.0, 0.9),
-                clamp(dot(glow, vec3(0.30, 0.40, 0.30))*0.9, 0.0, 0.9));
+    if(hit > 0.5){
+      tCore = t;
+      vec3 p = ro + rd*t;
+      vec3 N = bodyNormal(p); vec3 V = -rd;
+      float ndv = clamp(dot(N, V), 0.0, 1.0);
+      float fres = 0.04 + 0.96*pow(1.0 - ndv, 3.0);
+      vec3 rdIn = refract(rd, N, 1.0/1.45);
+      vec3 glow = vec3(0.0); float thick = 0.0;
+      float S = 0.36/RC;                       // energy was designed for a 0.36 core: scale to fit
+      vec3 q = p + rdIn*0.01;
+      for(int i = 0; i < 24; i++){
+        float sd = mapW(q);
+        if(sd > 0.0) break;
+        vec3 qo = uRot*q;
+        glow += flameAt(qo*S, sd*S) * 0.025 * S * 1.15;
+        thick += 0.025;
+        q += rdIn*0.025;
+      }
+      glow = 1.0 - exp(-glow*1.5);
+      vec3 refl = env(reflect(rd, N));
+      vec3 L1 = normalize(vec3(-0.4, 0.8, 0.45));
+      float spec = pow(max(dot(N, normalize(L1 + V)), 0.0), 120.0)*1.3;
+      float rim  = pow(1.0 - ndv, 2.2);
+      col = glow*(1.0 - fres*0.6) + refl*fres*0.85 + vec3(spec) + vec3(0.30, 0.38, 0.95)*rim*0.35
+          + vec3(0.05, 0.07, 0.16)*(1.0 - exp(-thick*1.6));
+      // the stalk bases light up towards their threads: energy flowing from the body into each stalk
+      float out_ = smoothstep(RC*0.98, RC + MB*0.9, length(uRot*p));
+      col += vec3(0.62, 0.70, 1.05) * out_ * (0.55 + 0.35*energyB);
+      col = min(col, vec3(1.4));
+      alpha = max(clamp(0.10 + 0.20*(1.0 - exp(-thick*1.2)) + fres*0.55 + out_*0.4, 0.0, 0.92),
+                  clamp(dot(glow, vec3(0.30, 0.40, 0.30))*0.9, 0.0, 0.9));
+    }
   }
 
   // ---- stalks: the 4 tetrapod stalks, plus up to NS more that grow out with sound ----
   float energy = clamp(uDrive*1.2 + 0.15*uChurn, 0.0, 1.0);
   vec3 light = vec3(0.0);
   const float s3 = 0.57735;
-  light += stalk(ro, rd, toWorld*vec3( s3,  s3,  s3), uMainLen.x, 0.11, tCore, energy);
-  light += stalk(ro, rd, toWorld*vec3( s3, -s3, -s3), uMainLen.y, 0.37, tCore, energy);
-  light += stalk(ro, rd, toWorld*vec3(-s3,  s3, -s3), uMainLen.z, 0.59, tCore, energy);
-  light += stalk(ro, rd, toWorld*vec3(-s3, -s3,  s3), uMainLen.w, 0.83, tCore, energy);
+  light += stalk(ro, rd, toWorld*vec3( s3,  s3,  s3), RC + MB, uMainLen.x, 0.11, tCore, energy);
+  light += stalk(ro, rd, toWorld*vec3( s3, -s3, -s3), RC + MB, uMainLen.y, 0.37, tCore, energy);
+  light += stalk(ro, rd, toWorld*vec3(-s3,  s3, -s3), RC + MB, uMainLen.z, 0.59, tCore, energy);
+  light += stalk(ro, rd, toWorld*vec3(-s3, -s3,  s3), RC + MB, uMainLen.w, 0.83, tCore, energy);
 
   if(uSpread > 0.002){
     // walk the ray through the clock; each new stalk met is drawn once, exactly
@@ -311,12 +369,10 @@ void main(){
         float j = sfNearest(po/r, NS);
         if(j == last) continue;
         last = j;
-        float rank = h1(j + 1.3);
-        float act = clamp((uSpread*1.12 - rank)/0.12, 0.0, 1.0);
-        act = act*act*(3.0 - 2.0*act);
+        float act = stalkAct(j);
         if(act < 0.002) continue;
         float len = RC + act*(0.40 + 0.26*h1(j*3.7))*(0.88 + 0.30*band(j));
-        light += stalk(ro, rd, toWorld*sfDir(j, NS), len, h1(j*9.1), tCore, energy) * (0.55 + 0.45*act);
+        light += stalk(ro, rd, toWorld*sfDir(j, NS), RC + XB*act, len, h1(j*9.1), tCore, energy) * (0.55 + 0.45*act);
       }
     }
   }
