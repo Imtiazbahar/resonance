@@ -1,0 +1,530 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Agent Tetrapod Glass Blobs">
+<meta name="theme-color" content="#05060a">
+<title>Resonance · Agent Tetrapod Glass Blobs — glass arms that multiply with sound and pinch off into blobs</title>
+<style>
+  :root {
+    --bg-0:#05060a; --ink:#e7e9f5; --ink-dim:#8b8fb0; --ink-faint:#4a4d68;
+    --panel:rgba(18,20,34,0.55); --panel-brd:rgba(140,150,210,0.16);
+    --chip:rgba(255,255,255,0.05); --chip-brd:rgba(255,255,255,0.09); --focus:#8ea2ff;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body {
+    background:
+      radial-gradient(120% 90% at 50% 34%, rgba(50,40,120,0.10) 0%, rgba(8,8,18,0) 55%),
+      radial-gradient(140% 130% at 50% 120%, #08080f 0%, var(--bg-0) 60%),
+      var(--bg-0);
+    color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    overflow:hidden; -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent;
+  }
+  canvas#orb { position:fixed; inset:0; width:100%; height:100%; display:block; z-index:1; }
+  .hud { position:fixed; inset:0; pointer-events:none; z-index:3; }
+  .wordmark { position:absolute; top:clamp(20px,4vw,40px); left:clamp(20px,5vw,44px); }
+  .wordmark h1 { font-size:clamp(18px,2.4vw,26px); font-weight:800; letter-spacing:-0.03em; line-height:1; display:flex; align-items:center; gap:0.5ch; }
+  .wordmark h1 .dot { width:0.38em; height:0.38em; border-radius:50%; background:var(--live-col,#8ea2ff); box-shadow:0 0 12px var(--live-col,#8ea2ff); transition:background .4s, box-shadow .4s; }
+  .wordmark p { margin-top:8px; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:var(--ink-dim); }
+  .status { position:absolute; left:50%; top:50%; transform:translate(-50%,calc(-50% + var(--orb-r,150px) + 46px)); text-align:center; transition:transform .3s; }
+  .status .state { font-size:clamp(20px,3.4vw,30px); font-weight:700; letter-spacing:-0.02em; line-height:1; }
+  .status .hint { margin-top:10px; font-family:ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-dim); min-height:1em; }
+  .console { position:absolute; left:50%; bottom:clamp(22px,5vh,46px); transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:16px; pointer-events:auto; width:min(560px,92vw); }
+  .segmented { display:flex; gap:6px; padding:6px; border-radius:18px; background:var(--panel); border:1px solid var(--panel-brd); backdrop-filter:blur(20px) saturate(1.3); -webkit-backdrop-filter:blur(20px) saturate(1.3); width:100%; }
+  .seg { flex:1 1 0; display:flex; flex-direction:column; align-items:center; gap:5px; padding:11px 4px 9px; border-radius:13px; background:transparent; border:1px solid transparent; color:var(--ink-dim); font-family:inherit; font-size:12px; font-weight:600; letter-spacing:-0.01em; cursor:pointer; transition:background .18s,color .18s,border-color .18s; }
+  .seg .ic { width:20px; height:20px; flex:none; }
+  .seg .ic path, .seg .ic line, .seg .ic circle, .seg .ic rect { stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; fill:none; }
+  .seg:hover { color:var(--ink); }
+  .seg[aria-pressed="true"] { background:var(--chip); border-color:var(--chip-brd); color:var(--ink); }
+  .seg:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+  .microw { display:flex; align-items:center; gap:12px; font-family:ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:0.06em; color:var(--ink-dim); }
+  .micdot { width:8px; height:8px; border-radius:50%; background:var(--ink-faint); transition:background .3s,box-shadow .3s; }
+  .micdot.on { background:#62e4a8; box-shadow:0 0 10px #62e4a8; }
+  .micdot.err { background:#ff6b7d; box-shadow:0 0 10px #ff6b7d; }
+  .gate { position:fixed; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; background:rgba(5,6,10,0.4); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); pointer-events:auto; }
+  .gate button { pointer-events:auto; padding:16px 30px; border-radius:16px; background:var(--panel); border:1px solid var(--panel-brd); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); color:var(--ink); font-family:inherit; font-size:15px; font-weight:700; letter-spacing:-0.01em; cursor:pointer; display:flex; align-items:center; gap:10px; }
+  .gate button .ic { width:20px; height:20px; }
+  .gate button .ic path { stroke:currentColor; stroke-width:1.7; stroke-linecap:round; fill:none; }
+  .gate small { display:block; font-family:ui-monospace,Menlo,monospace; font-weight:500; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-dim); margin-top:4px; }
+  @media (max-width:480px){ .seg .lbl{font-size:11px;} .wordmark p{display:none;} }
+</style>
+
+<canvas id="orb"></canvas>
+
+<div class="hud">
+  <div class="wordmark"><h1><span class="dot"></span> Agent</h1><p>Tetrapod · glass blobs</p></div>
+  <div class="status"><div class="state" id="stateLabel">Idle</div><div class="hint" id="stateHint">Tap a state below</div></div>
+  <div class="console">
+    <div class="segmented" role="group" aria-label="Agent state">
+      <button class="seg" data-state="idle" aria-pressed="true">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg><span class="lbl">Idle</span></button>
+      <button class="seg" data-state="listening" aria-pressed="false">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span class="lbl">Listening</span></button>
+      <button class="seg" data-state="thinking" aria-pressed="false">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg><span class="lbl">Thinking</span></button>
+      <button class="seg" data-state="speaking" aria-pressed="false">
+        <svg class="ic" viewBox="0 0 24 24"><line x1="5" y1="9" x2="5" y2="15"/><line x1="9.5" y1="5" x2="9.5" y2="19"/><line x1="14.5" y1="7" x2="14.5" y2="17"/><line x1="19" y1="10" x2="19" y2="14"/></svg><span class="lbl">Speaking</span></button>
+    </div>
+    <div class="microw"><span class="micdot" id="micDot"></span><span id="micLabel">Microphone off · used only in Listening</span></div>
+  </div>
+</div>
+
+<div class="gate" id="gate">
+  <button id="gateBtn">
+    <svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    <span>Start visualiser<small>Enable sound &amp; motion</small></span>
+  </button>
+</div>
+
+<script id="vert" type="x-shader/x-vertex">
+attribute vec2 aPos;
+void main(){ gl_Position=vec4(aPos,0.0,1.0); }
+</script>
+
+<script id="frag" type="x-shader/x-fragment">
+precision highp float;
+uniform vec2  uCenter;    // px, y from bottom
+uniform float uRadius;    // px that map to 1.25 world units (the view's half-size)
+uniform float uTime;
+uniform float uDrive;     // 0..1 overall sound energy
+uniform float uChurn;     // autonomous motion per state
+uniform float uSquish;    // jelly wobble amount
+uniform mat3  uRot;       // shape rotation (world -> object)
+uniform float uGather;    // 1 = beams gathered into a sphere of energy at the centre, 0 = spread through the body
+uniform vec4  uMainLen;   // the 4 tetrapod arms' lengths
+uniform vec4  uMainBlob;  // how far each tetrapod arm's blob has travelled out (pinches off, then rejoins)
+uniform float uSpread;    // 0 = just the 4 arms, 1 = all the extra arms grown out with the voice
+uniform float uLevel;     // smoothed sound level (blobs on the extra arms follow it)
+uniform vec4  uBandA;     // 8 smoothed sound bands, low -> high pitch
+uniform vec4  uBandB;
+const float PI  = 3.14159265;
+const float PHI = 1.61803398875;
+const float NS  = 26.0;   // extra arms that can grow out with sound (few enough to stay soft)
+
+// ---------------------------------------------------------------- shape ----
+float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5*(b - a)/k, 0.0, 1.0); return mix(b, a, h) - k*h*(1.0 - h); }
+
+// tapered, rounded arm (round cone, after Inigo Quilez)
+float sdRoundCone(vec3 p, vec3 a, vec3 b, float r1, float r2){
+  vec3 ba = b - a; float l2 = dot(ba, ba); float rr = r1 - r2; float a2 = l2 - rr*rr; float il2 = 1.0/l2;
+  vec3 pa = p - a; float y = dot(pa, ba); float z = y - l2;
+  vec3 xv = pa*l2 - ba*y; float x2 = dot(xv, xv); float y2 = y*y*l2; float z2 = z*z*l2;
+  float k = sign(rr)*rr*rr*x2;
+  if(sign(z)*a2*z2 > k) return sqrt(x2 + z2)*il2 - r2;
+  if(sign(y)*a2*y2 < k) return sqrt(x2 + y2)*il2 - r1;
+  return (sqrt(x2*a2*il2) + y*rr)*il2 - r1;
+}
+float h1(float n){ return fract(sin(n*12.9898 + 4.1414)*43758.5453); }
+
+// Spherical Fibonacci: the i-th of n evenly spread directions, and the inverse lookup
+// (nearest direction to p) after Keinert et al. 2015 — lets one sample find "its" stalk.
+vec3 sfDir(float i, float n){
+  float phi = 2.0*PI*fract(i*PHI);
+  float ct  = 1.0 - (2.0*i + 1.0)/n;
+  float st  = sqrt(max(0.0, 1.0 - ct*ct));
+  return vec3(cos(phi)*st, sin(phi)*st, ct);
+}
+float sfNearest(vec3 p, float n){
+  float phi = min(atan(p.y, p.x), PI), ct = p.z;
+  float k  = max(2.0, floor(log(n*PI*sqrt(5.0)*(1.0 - ct*ct)) / log(PHI*PHI)));
+  float Fk = pow(PHI, k)/sqrt(5.0);
+  vec2  F  = vec2(floor(Fk + 0.5), floor(Fk*PHI + 0.5));
+  vec2  ka = 2.0*F/n;
+  vec2  kb = 2.0*PI*(fract((F + 1.0)*PHI) - (PHI - 1.0));
+  mat2  iB = mat2(ka.y, -ka.x, kb.y, -kb.x) / (ka.y*kb.x - ka.x*kb.y);
+  vec2  c  = floor(iB * vec2(phi, ct - (1.0 - 1.0/n)));
+  float best = 1e9, bi = 0.0;
+  for(int s = 0; s < 4; s++){
+    vec2  o = vec2(mod(float(s), 2.0), floor(float(s)/2.0));
+    float i = clamp(dot(F, o + c), 0.0, n - 1.0);
+    vec3  q = sfDir(i, n);
+    float d = dot(q - p, q - p);
+    if(d < best){ best = d; bi = i; }
+  }
+  return bi;
+}
+
+float band(float j){
+  float k = mod(j, 8.0);
+  return k < 4.0 ? dot(uBandA, vec4(equal(vec4(k), vec4(0.0, 1.0, 2.0, 3.0))))
+                 : dot(uBandB, vec4(equal(vec4(k), vec4(4.0, 5.0, 6.0, 7.0))));
+}
+
+// the original soft tetrapod arm (wide, rounded base) — now narrowing to a fine tip
+float arm(vec3 p, vec3 dir, float len){
+  return sdRoundCone(p, vec3(0.0), dir*len, 0.235, 0.035);
+}
+// a blob riding out along an arm: part of the tip at first (a stretchy neck), then its own drop
+float blob(vec3 p, vec3 dir, float dist, float r){ return length(p - dir*dist) - r; }
+
+// the shape in OBJECT space: soft core + 4 tetrapod arms + up to NS arms grown with the voice,
+// every arm carrying a blob that pinches off with sound
+float shapeObj(vec3 p){
+  p += uSquish * 0.035 * sin(p.yzx*3.1 + uTime*vec3(1.10, 1.30, 0.90));   // jelly wobble
+  float d = length(p) - 0.36;
+  const float K = 0.23, KB = 0.15;
+  const float s = 0.57735;
+  vec3 d0 = vec3( s,  s,  s), d1 = vec3( s, -s, -s), d2 = vec3(-s,  s, -s), d3 = vec3(-s, -s,  s);
+  d = smin(d, arm(p, d0, uMainLen.x), K);
+  d = smin(d, arm(p, d1, uMainLen.y), K);
+  d = smin(d, arm(p, d2, uMainLen.z), K);
+  d = smin(d, arm(p, d3, uMainLen.w), K);
+  // a blob hides inside its narrow tip at rest and swells as it travels out
+  vec4 br = 0.026 + 0.034*smoothstep(uMainLen - 0.02, uMainLen + 0.12, uMainBlob);
+  d = smin(d, blob(p, d0, uMainBlob.x, br.x), KB);
+  d = smin(d, blob(p, d1, uMainBlob.y, br.y), KB);
+  d = smin(d, blob(p, d2, uMainBlob.z, br.z), KB);
+  d = smin(d, blob(p, d3, uMainBlob.w, br.w), KB);
+  if(uSpread > 0.002){
+    // the extra arm nearest this point (one lookup); kept slimmer than the gap between
+    // neighbouring arms so each melts into the body smoothly
+    vec3 n = normalize(p);
+    float j = sfNearest(n, NS);
+    float act = clamp((uSpread*1.15 - h1(j + 1.3))/0.15, 0.0, 1.0);
+    act = act*act*(3.0 - 2.0*act);
+    if(act > 0.01){
+      vec3  dj  = sfDir(j, NS);
+      float a   = clamp(uLevel*(0.6 + 0.8*band(j)), 0.0, 1.0)*act;     // this arm's own voice
+      float pl  = clamp((a - 0.2)/0.6, 0.0, 1.0); pl = pl*pl*(3.0 - 2.0*pl);
+      float rest = 0.36 + act*(0.20 + 0.14*h1(j*3.7));
+      float len  = rest + 0.05*a - 0.10*pl;
+      float bd   = rest - 0.02 + 0.05*a + 0.22*pow(a, 0.6);
+      d = smin(d, sdRoundCone(p, vec3(0.0), dj*len, 0.095*act + 0.01, 0.026), 0.075*act + 0.002);
+      d = smin(d, blob(p, dj, bd, 0.016 + 0.030*a), 0.07*act + 0.002);
+    }
+  }
+  return d;
+}
+float map(vec3 p){ return shapeObj(uRot * p); }
+
+vec3 calcNormal(vec3 p){
+  const vec2 e = vec2(0.0015, -0.0015);
+  return normalize(e.xyy*map(p + e.xyy) + e.yyx*map(p + e.yyx) + e.yxy*map(p + e.yxy) + e.xxx*map(p + e.xxx));
+}
+
+// ---------------------------------------------------------------- flame ----
+float hash(vec3 p){ p = fract(p*0.3183099 + 0.1); p *= 17.0; return fract(p.x*p.y*p.z*(p.x + p.y + p.z)); }
+float noise(vec3 x){
+  vec3 i = floor(x), f = fract(x); f = f*f*(3.0 - 2.0*f);
+  return mix(mix(mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
+                 mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
+                 mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+
+// One Agent-Flame beam, in 3D WORLD space (stays upright while the shape spins).
+// sdIn = how deep inside the glass we are (negative); near the walls the beam turns warm.
+vec3 beam(vec3 q, float sdIn, float ph, float lvl, float dr, vec3 accent, float dir, float driveSign){
+  float t = uTime;
+  float baseY = lvl + 0.09*sin(dir*t*0.45 + ph);
+  float tilt  = 0.11*sin(dir*t*0.37 + ph*1.3);
+  float wave  = 0.08*sin(q.x*3.0 + dir*t*0.80 + ph) + 0.05*sin(q.z*3.4 - dir*t*0.90 + ph*1.7);
+  float cw    = smoothstep(0.9, 0.0, length(q.xz));
+  float surf  = baseY + tilt*q.x + wave + driveSign*dr*0.30*cw;   // sound fans the middles apart
+  float s     = q.y - surf;
+  float thk   = max(0.10 + 0.05*sin(q.x*4.3 + dir*t*0.7 + ph) + 0.03*sin(q.z*5.0 - dir*t + ph), 0.045);
+  float ribbon = exp(-pow(s/thk, 2.0));
+  float below  = smoothstep(0.02, -0.75, s);
+  float warmth = smoothstep(-0.28, -0.03, sdIn);                  // near the inner walls -> accent
+  vec3 bandCol = mix(vec3(0.30,0.45,1.10), accent, warmth);
+  bandCol = mix(bandCol, vec3(0.85,0.90,1.18), smoothstep(0.55, 1.0, ribbon)*(1.0 - warmth));
+  // tongues licking up the inner walls just above the band
+  float fl   = 0.65 + 0.35*sin(dir*t*2.4 + ph + q.x*3.0) + 0.2*noise(vec3(q*4.0) + t*0.6);
+  float lick = exp(-pow((sdIn + 0.05)/0.06, 2.0)) * smoothstep(-0.05, 0.08, s) * smoothstep(0.30 + 0.35*dr, 0.0, s) * fl;
+  return bandCol*ribbon + vec3(0.14,0.20,0.85)*below*0.28 + accent*lick*(0.7 + 0.5*dr);
+}
+vec3 flameAt(vec3 q, float sdIn){
+  // gathering: the same two beams shrunk into a sphere at the centre. The sphere's
+  // edge becomes their "wall", so they still turn warm and lick up its rim.
+  const float R = 0.24;                                   // sphere radius (the core is 0.36)
+  float g   = uGather;
+  float zm  = mix(1.0, 0.30, g);
+  float rq  = length(q);
+  vec3  qe  = q / zm;
+  float sdE = mix(sdIn, rq - R, g) / zm;
+  vec3 c  = beam(qe, sdE, 0.0, -0.02, uDrive,     vec3(1.05,0.55,0.16),  1.0,  1.0);        // blue + yellow
+  c      += beam(qe, sdE, 2.4,  0.03, uDrive*0.9, vec3(0.66,0.30,1.15), -1.0, -1.0) * 0.85; // blue + purple
+  c *= mix(1.0, smoothstep(R + 0.03, R - 0.04, rq), g);  // nothing escapes the sphere when gathered
+  c *= mix(1.0, 2.2, g);
+  float ball = smoothstep(R + 0.02, R - 0.07, rq);
+  float rimB = exp(-pow((rq - (R - 0.03))/0.035, 2.0));
+  float heart = exp(-rq*rq/(R*R*0.35));
+  c += (vec3(0.30, 0.45, 1.10) * ball * 1.0 + vec3(0.85, 0.90, 1.18) * heart * 1.4
+      + vec3(1.05, 0.62, 0.30) * rimB * 0.7) * g;        // the flame's blue, white-hot heart, warm rim
+  return c * (0.95 + 0.55*uDrive + 0.25*uChurn);
+}
+
+// soft studio environment the glass reflects
+vec3 env(vec3 r){
+  float y = r.y*0.5 + 0.5;
+  vec3 c = mix(vec3(0.03,0.04,0.09), vec3(0.55,0.62,0.85), smoothstep(0.35, 1.0, y));
+  c += vec3(1.0) * pow(max(dot(r, normalize(vec3(-0.4, 0.8, 0.45))), 0.0), 24.0) * 1.2;  // key softbox
+  c += vec3(0.5,0.6,1.0) * pow(max(dot(r, normalize(vec3(0.7, 0.1, 0.6))), 0.0), 10.0) * 0.35; // fill
+  return c;
+}
+
+void main(){
+  vec2 uv = (gl_FragCoord.xy - uCenter) / uRadius;      // -1..1 across the view, y up
+  if(length(uv) > 1.7){ gl_FragColor = vec4(0.0); return; }
+
+  vec3 ro = vec3(0.0, 0.0, 3.4);
+  vec3 rd = normalize(vec3(uv*1.02/3.4, -1.0));          // view half-size ~1 world unit at the centre
+  // ---- march to the glass surface ----
+  float t = 2.0, minD = 1e3, hit = 0.0;
+  for(int i = 0; i < 72; i++){
+    vec3 p = ro + rd*t;
+    float d = map(p);
+    minD = min(minD, d);
+    if(d < 0.0012){ hit = 1.0; break; }
+    t += d*0.85;
+    if(t > 5.0) break;
+  }
+
+  vec3 col = vec3(0.0);
+  float alpha = 0.0;
+  if(hit > 0.5){
+    vec3 p = ro + rd*t;
+    vec3 N = calcNormal(p);
+    vec3 V = -rd;
+    float ndv  = clamp(dot(N, V), 0.0, 1.0);
+    float fres = 0.04 + 0.96*pow(1.0 - ndv, 3.0);
+
+    // ---- look INTO the glass: bend the ray, travel through, gathering the flame's light ----
+    vec3 rdIn = refract(rd, N, 1.0/1.45);
+    vec3 q = p + rdIn*0.015;
+    vec3 glow = vec3(0.0);
+    float thick = 0.0;
+    for(int i = 0; i < 26; i++){
+      float sd = map(q);
+      if(sd > 0.0) break;
+      float st = 0.055;
+      glow  += flameAt(q, sd) * st * 1.15;
+      thick += st;
+      q += rdIn*st;
+    }
+
+    // ---- squishy-glass surface: gloss, soft rim, gummy inner light near the skin ----
+    glow = 1.0 - exp(-glow*1.5);                                   // soft highlight roll-off: bright but not blown out
+    vec3 refl = env(reflect(rd, N));
+    vec3 L1 = normalize(vec3(-0.4, 0.8, 0.45)), L2 = normalize(vec3(0.6, -0.2, 0.7));
+    float spec = pow(max(dot(N, normalize(L1 + V)), 0.0), 120.0)*1.3 + pow(max(dot(N, normalize(L2 + V)), 0.0), 60.0)*0.25;
+    float rim  = pow(1.0 - ndv, 2.2);
+    vec3 gummy = vec3(0.30, 0.38, 0.95) * rim * 0.35;              // soft inner glow at the edges, like a jelly toy
+    vec3 tint  = vec3(0.05, 0.07, 0.16) * (1.0 - exp(-thick*1.6)); // body colour from how much glass we looked through
+
+    col = glow*(1.0 - fres*0.6) + refl*fres*0.85 + vec3(spec) + gummy + tint;
+    // energy glows out towards the arm tips and into the blobs, so the arms read as lit glass
+    float reach = smoothstep(0.40, 0.80, length(uRot*p));
+    col += vec3(0.60, 0.68, 1.05) * reach * (0.45 + 0.35*uDrive);
+    col = min(col, vec3(1.4));
+    // coverage: the glass lets the background through except where it reflects, is thick, or glows
+    float glassA = clamp(0.10 + 0.20*(1.0 - exp(-thick*1.2)) + fres*0.55, 0.0, 0.9);
+    float lightA = clamp(dot(glow, vec3(0.30, 0.40, 0.30))*0.9, 0.0, 0.9);
+    alpha = max(max(glassA, lightA), reach*0.55);
+  }
+
+  // faint halo that breathes with sound
+  float halo = exp(-max(minD, 0.0)*10.0) * (0.035 + uDrive*0.20) * (1.0 - hit);
+  col += vec3(0.30, 0.32, 1.0) * halo;
+  gl_FragColor = vec4(col, max(alpha, halo));        // premultiplied: light adds, glass tints
+}
+</script>
+
+<script>
+(() => {
+  "use strict";
+  const canvas = document.getElementById('orb');
+  const gl = canvas.getContext('webgl', { alpha:true, premultipliedAlpha:true, antialias:true });
+
+  // spin = turns per second (radians), churn = autonomous motion, drive = how strongly sound moves it
+  const STATES = {
+    idle:      { name:'Idle',      hint:'Waiting for you',                          spin:0.22, churn:0.15, drive:0.0 },
+    listening: { name:'Listening', hint:'Speak — arms grow and blobs break free', spin:1.10, churn:0.20, drive:1.0 },
+    thinking:  { name:'Thinking',  hint:'Processing',                               spin:0.75, churn:0.80, drive:0.0 },
+    speaking:  { name:'Speaking',  hint:'Agent is responding',                      spin:1.10, churn:0.30, drive:0.85 }
+  };
+  let state = 'idle';
+  const P = { spin:0.22, churn:0.15, drive:0, level:0, yaw:0, gather:1, spread:0 };
+  const arms = new Float32Array(8);          // smoothed per-arm sound level 0..1
+  const armLen = new Float32Array(8);
+  const blobD = new Float32Array(8);
+  const ease = (a, b, k, dt) => a + (b - a) * (1 - Math.pow(1 - k, dt*60));
+
+  // ---- WebGL ----
+  function compile(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, document.getElementById('vert').textContent));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, document.getElementById('frag').textContent));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog));
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(prog, 'aPos'); gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);   // premultiplied
+  const U = n => gl.getUniformLocation(prog, n);
+  const UL = { center:U('uCenter'), radius:U('uRadius'), time:U('uTime'), drive:U('uDrive'), churn:U('uChurn'),
+               squish:U('uSquish'), rot:U('uRot'), gather:U('uGather'), mainLen:U('uMainLen'), mainBlob:U('uMainBlob'),
+               spread:U('uSpread'), level:U('uLevel'), bandA:U('uBandA'), bandB:U('uBandB') };
+
+  // ---- sizing ----
+  let cxDev=0, cyDev=0, radDev=0;
+  function resize(){
+    const dpr = Math.min(window.devicePixelRatio||1, 1.5);         // 3D is heavier: cap resolution
+    const W = window.innerWidth, H = window.innerHeight;
+    canvas.width = Math.round(W*dpr); canvas.height = Math.round(H*dpr);
+    canvas.style.width = W+'px'; canvas.style.height = H+'px';
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    const cx = W/2, cy = H/2 - Math.min(H*0.06, 40);
+    const r = Math.min(220, Math.max(110, Math.min(W, H)*0.26));
+    cxDev = cx*dpr; cyDev = canvas.height - cy*dpr; radDev = r*dpr;
+    document.documentElement.style.setProperty('--orb-r', (r*0.95)+'px');
+  }
+  window.addEventListener('resize', resize); resize();
+
+  // ---- microphone: overall level + 8 frequency bands (one per arm) ----
+  let audioCtx=null, analyser=null, timeData=null, freqData=null, micReady=false;
+  const micDot = document.getElementById('micDot'), micLabel = document.getElementById('micLabel');
+  async function enableMic(){
+    if(micReady) return true;
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0.75;
+      src.connect(analyser);
+      timeData = new Uint8Array(analyser.fftSize); freqData = new Uint8Array(analyser.frequencyBinCount);
+      micReady = true;
+      micDot.classList.add('on'); micDot.classList.remove('err'); micLabel.textContent = 'Microphone live';
+      return true;
+    }catch(err){
+      micDot.classList.add('err');
+      micLabel.textContent = (location.protocol==='https:'||location.hostname==='localhost')
+        ? 'Microphone blocked — allow access to react to voice' : 'Microphone needs https — open the hosted link';
+      return false;
+    }
+  }
+  function micLevel(){
+    if(!micReady) return 0;
+    analyser.getByteTimeDomainData(timeData);
+    let sum=0; for(let i=0;i<timeData.length;i++){ const v=(timeData[i]-128)/128; sum+=v*v; }
+    return Math.min(1, Math.pow(Math.min(1, Math.sqrt(sum/timeData.length)*6.0), 0.6));   // boosted for quiet speech
+  }
+  // 8 log-spaced bands from ~90 Hz to ~6 kHz; each normalised by its own slowly-decaying peak
+  const bandPeak = new Float32Array(8).fill(0.2);
+  const bandOut = new Float32Array(8);
+  function micBands(level){
+    analyser.getByteFrequencyData(freqData);
+    const hzPerBin = audioCtx.sampleRate / analyser.fftSize;
+    for(let b=0;b<8;b++){
+      const lo = 90*Math.pow(6000/90, b/8), hi = 90*Math.pow(6000/90, (b+1)/8);
+      const i0 = Math.max(1, Math.floor(lo/hzPerBin)), i1 = Math.max(i0+1, Math.ceil(hi/hzPerBin));
+      let s=0; for(let i=i0;i<i1;i++) s += freqData[i]; const v = s/((i1-i0)*255);
+      bandPeak[b] = Math.max(v, bandPeak[b]*0.995, 0.12);
+      bandOut[b] = Math.min(1, (v/bandPeak[b]) * level * 1.15);       // gated by overall loudness
+    }
+    return bandOut;
+  }
+  // simulated agent voice for Speaking: overall rhythm + per-band variation
+  let speakSeed = Math.random()*1000;
+  function speakLevel(t){
+    const syl=0.5+0.5*Math.sin(t*30+Math.sin(t*7)*2), emph=0.55+0.45*Math.sin(t*3.3+speakSeed);
+    const n=0.5+0.5*Math.sin((t*0.55+speakSeed*0.3)*6.28)+0.3*Math.sin((t*0.55)*15.1+1.7);
+    return Math.max(0, syl*emph*(n>0.35?1:Math.max(0.12,n/0.35)));
+  }
+  function speakBands(t, level){
+    for(let b=0;b<8;b++) bandOut[b] = Math.max(0, Math.min(1, level*(0.55 + 0.45*Math.sin(t*(4.0+b*1.37) + b*2.1 + speakSeed))));
+    return bandOut;
+  }
+
+  // ---- render loop ----
+  let t0=performance.now(), last=0, running=false;
+  const rot = new Float32Array(9);
+  function frame(now){
+    if(!running) return;
+    const t = (now - t0)/1000, dt = last ? Math.min(0.05, t - last) : 1/60; last = t;
+    const S = STATES[state];
+    P.spin = ease(P.spin, S.spin, 0.04, dt); P.churn = ease(P.churn, S.churn, 0.06, dt); P.drive = ease(P.drive, S.drive, 0.06, dt);
+
+    let target = 0, bands = null;
+    if(state==='listening'){ target = micLevel(); if(micReady) bands = micBands(target); }
+    else if(state==='speaking'){ target = speakLevel(t); bands = speakBands(t, target); }
+    P.level = ease(P.level, target, target > P.level ? 0.4 : 0.12, dt);
+    const drive = P.level*P.drive;
+
+    // energy sphere: gathered at rest, spread while thinking, and with a voice it
+    // bursts out as the sound rises and gathers back in the quiet moments
+    const sm = (a, b, x) => { const u = Math.min(1, Math.max(0, (x - a)/(b - a))); return u*u*(3 - 2*u); };
+    const gatherWant = state === 'idle' ? 1 : state === 'thinking' ? 0 : 1 - sm(0.04, 0.45, drive);
+    P.gather = ease(P.gather, gatherWant, gatherWant < P.gather ? 0.14 : 0.05, dt);
+
+    // per-arm reach: fast to grow, slower to retract
+    for(let i=0;i<8;i++){
+      const want = bands ? bands[i]*P.drive : 0;
+      arms[i] = ease(arms[i], want, want > arms[i] ? 0.30 : 0.07, dt);
+      const breathe = 0.03*Math.sin(t*0.8 + i*1.7);
+      // like the chalk Tetrapod Blobs: the arm grows very slightly, then draws back while its
+      // tip moves a short way out, so the neck stretches and the blob pinches off
+      const a = arms[i], pull = Math.min(1, Math.max(0, (a - 0.2)/0.6)), pullS = pull*pull*(3 - 2*pull);
+      const rest = 0.70 + breathe;
+      armLen[i] = rest + 0.08*a - 0.15*pullS;
+      blobD[i]  = rest - 0.03 + 0.08*a + 0.30*Math.pow(a, 0.6);
+    }
+
+    // with a voice, more arms grow out of the body (fast) and fold back in slowly when quiet
+    const spreadWant = (state === 'listening' || state === 'speaking') ? sm(0.03, 0.55, drive) : 0;
+    P.spread = ease(P.spread, spreadWant, spreadWant > P.spread ? 0.12 : 0.025, dt);
+
+    // slow spin around its own vertical axis, viewed slightly from above with a gentle nod
+    P.yaw += dt*(P.spin + drive*0.3);
+    const pitch = 0.42 + 0.12*Math.sin(t*0.13), cy = Math.cos(P.yaw), sy = Math.sin(P.yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+    // R = Rx(pitch)*Ry(yaw), row-major; passed as-is it becomes R^T in GLSL (world -> object)
+    rot.set([ cy, 0, sy,   sp*sy, cp, -sp*cy,   -cp*sy, sp, cp*cy ]);
+
+    const dc=[Math.min(255,120+drive*135),90,Math.min(255,200+drive*55)];
+    document.documentElement.style.setProperty('--live-col', `rgb(${dc[0]|0},${dc[1]|0},${dc[2]|0})`);
+
+    gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform2f(UL.center, cxDev, cyDev);
+    gl.uniform1f(UL.radius, radDev);
+    gl.uniform1f(UL.time, t);
+    gl.uniform1f(UL.drive, drive);
+    gl.uniform1f(UL.churn, P.churn);
+    gl.uniform1f(UL.squish, 0.6 + 0.8*drive + 0.4*P.churn);
+    gl.uniformMatrix3fv(UL.rot, false, rot);
+    gl.uniform4f(UL.mainLen, armLen[0], armLen[1], armLen[2], armLen[3]);
+    gl.uniform4f(UL.mainBlob, blobD[0], blobD[1], blobD[2], blobD[3]);
+    gl.uniform1f(UL.spread, P.spread);
+    gl.uniform1f(UL.level, drive);
+    gl.uniform4f(UL.bandA, arms[0], arms[1], arms[2], arms[3]);
+    gl.uniform4f(UL.bandB, arms[4], arms[5], arms[6], arms[7]);
+    gl.uniform1f(UL.gather, P.gather);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    requestAnimationFrame(frame);
+  }
+
+  // ---- state switching ----
+  const stateLabel=document.getElementById('stateLabel'), stateHint=document.getElementById('stateHint');
+  const segs=[...document.querySelectorAll('.seg')];
+  async function setState(next){
+    state=next; const S=STATES[next];
+    stateLabel.textContent=S.name; stateHint.textContent=S.hint;
+    segs.forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.state===next)));
+    if(next==='speaking') speakSeed=Math.random()*1000;
+    if(next==='listening'){
+      const ok=await enableMic();
+      if(ok && audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+      if(!ok) stateHint.textContent=micLabel.textContent;
+    }
+  }
+  segs.forEach(b=>b.addEventListener('click',()=>setState(b.dataset.state)));
+  const gate=document.getElementById('gate');
+  document.getElementById('gateBtn').addEventListener('click',()=>{
+    gate.style.display='none'; running=true; t0=performance.now(); last=0; requestAnimationFrame(frame);
+  });
+  window.addEventListener('keydown',e=>{ const m={'1':'idle','2':'listening','3':'thinking','4':'speaking'}; if(m[e.key]) setState(m[e.key]); });
+})();
+</script>
