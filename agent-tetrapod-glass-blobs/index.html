@@ -101,7 +101,7 @@ uniform vec4  uBandA;     // 8 smoothed sound bands, low -> high pitch
 uniform vec4  uBandB;
 const float PI  = 3.14159265;
 const float PHI = 1.61803398875;
-const float NS  = 26.0;   // extra arms that can grow out with sound (few enough to stay soft)
+const float NS  = 24.0;   // extra arm positions (those next to a tetrapod arm stay empty)
 
 // ---------------------------------------------------------------- shape ----
 float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5*(b - a)/k, 0.0, 1.0); return mix(b, a, h) - k*h*(1.0 - h); }
@@ -152,47 +152,48 @@ float band(float j){
                  : dot(uBandB, vec4(equal(vec4(k), vec4(4.0, 5.0, 6.0, 7.0))));
 }
 
-// the original soft tetrapod arm (wide, rounded base) — now narrowing to a fine tip
-float arm(vec3 p, vec3 dir, float len){
-  return sdRoundCone(p, vec3(0.0), dir*len, 0.235, 0.035);
+// every arm shares ONE shape: a soft rounded base narrowing to a fine tip
+const float AR1 = 0.12, AR2 = 0.04;      // base / tip radius (rounded, never a sharp point)
+const float KA  = 0.07;                  // how softly each arm melts into the body
+const float KB  = 0.12;                  // the blob's stretchy neck
+float arm(vec3 p, vec3 dir, float len){ return sdRoundCone(p, vec3(0.0), dir*len, AR1, AR2); }
+// a blob riding out along an arm: hidden in the tip at rest, swelling and pinching off as it travels
+float blob(vec3 p, vec3 dir, float dist, float len){
+  return length(p - dir*dist) - (0.026 + 0.034*smoothstep(len - 0.02, len + 0.12, dist));
 }
-// a blob riding out along an arm: part of the tip at first (a stretchy neck), then its own drop
-float blob(vec3 p, vec3 dir, float dist, float r){ return length(p - dir*dist) - r; }
 
-// the shape in OBJECT space: soft core + 4 tetrapod arms + up to NS arms grown with the voice,
-// every arm carrying a blob that pinches off with sound
+// the shape in OBJECT space: soft core + 4 tetrapod arms + up to NS more grown with the voice.
+// All arms (and their blobs) follow the same rules, so they all look alike.
 float shapeObj(vec3 p){
   p += uSquish * 0.035 * sin(p.yzx*3.1 + uTime*vec3(1.10, 1.30, 0.90));   // jelly wobble
   float d = length(p) - 0.36;
-  const float K = 0.23, KB = 0.15;
   const float s = 0.57735;
   vec3 d0 = vec3( s,  s,  s), d1 = vec3( s, -s, -s), d2 = vec3(-s,  s, -s), d3 = vec3(-s, -s,  s);
-  d = smin(d, arm(p, d0, uMainLen.x), K);
-  d = smin(d, arm(p, d1, uMainLen.y), K);
-  d = smin(d, arm(p, d2, uMainLen.z), K);
-  d = smin(d, arm(p, d3, uMainLen.w), K);
-  // a blob hides inside its narrow tip at rest and swells as it travels out
-  vec4 br = 0.026 + 0.034*smoothstep(uMainLen - 0.02, uMainLen + 0.12, uMainBlob);
-  d = smin(d, blob(p, d0, uMainBlob.x, br.x), KB);
-  d = smin(d, blob(p, d1, uMainBlob.y, br.y), KB);
-  d = smin(d, blob(p, d2, uMainBlob.z, br.z), KB);
-  d = smin(d, blob(p, d3, uMainBlob.w, br.w), KB);
+  d = smin(d, arm(p, d0, uMainLen.x), KA);
+  d = smin(d, arm(p, d1, uMainLen.y), KA);
+  d = smin(d, arm(p, d2, uMainLen.z), KA);
+  d = smin(d, arm(p, d3, uMainLen.w), KA);
+  d = smin(d, blob(p, d0, uMainBlob.x, uMainLen.x), KB);
+  d = smin(d, blob(p, d1, uMainBlob.y, uMainLen.y), KB);
+  d = smin(d, blob(p, d2, uMainBlob.z, uMainLen.z), KB);
+  d = smin(d, blob(p, d3, uMainBlob.w, uMainLen.w), KB);
   if(uSpread > 0.002){
-    // the extra arm nearest this point (one lookup); kept slimmer than the gap between
-    // neighbouring arms so each melts into the body smoothly
-    vec3 n = normalize(p);
-    float j = sfNearest(n, NS);
+    vec3  n  = normalize(p);
+    float j  = sfNearest(n, NS);
+    vec3  dj = sfDir(j, NS);
+    // no extra arm grows where a tetrapod arm already is (it would show inside it)
+    float near = max(max(dot(dj, d0), dot(dj, d1)), max(dot(dj, d2), dot(dj, d3)));
     float act = clamp((uSpread*1.15 - h1(j + 1.3))/0.15, 0.0, 1.0);
-    act = act*act*(3.0 - 2.0*act);
+    act = act*act*(3.0 - 2.0*act) * smoothstep(0.92, 0.84, near);
     if(act > 0.01){
-      vec3  dj  = sfDir(j, NS);
-      float a   = clamp(uLevel*(0.6 + 0.8*band(j)), 0.0, 1.0)*act;     // this arm's own voice
-      float pl  = clamp((a - 0.2)/0.6, 0.0, 1.0); pl = pl*pl*(3.0 - 2.0*pl);
-      float rest = 0.36 + act*(0.20 + 0.14*h1(j*3.7));
-      float len  = rest + 0.05*a - 0.10*pl;
-      float bd   = rest - 0.02 + 0.05*a + 0.22*pow(a, 0.6);
-      d = smin(d, sdRoundCone(p, vec3(0.0), dj*len, 0.095*act + 0.01, 0.026), 0.075*act + 0.002);
-      d = smin(d, blob(p, dj, bd, 0.016 + 0.030*a), 0.07*act + 0.002);
+      // same arm and blob rules as the tetrapod arms (see the page script)
+      float a    = clamp(uLevel*(0.6 + 0.8*band(j)), 0.0, 1.0)*act;
+      float pl   = clamp((a - 0.2)/0.6, 0.0, 1.0); pl = pl*pl*(3.0 - 2.0*pl);
+      float rest = 0.36 + act*(0.34 + 0.04*(h1(j*3.7) - 0.5));        // grows to the same length as the others
+      float len  = rest + 0.08*a - 0.15*pl;
+      float bd   = rest - 0.03 + 0.08*a + 0.30*pow(a, 0.6);
+      d = smin(d, arm(p, dj, len), KA*act + 0.002);
+      d = smin(d, blob(p, dj, bd, len), KB*act + 0.002);
     }
   }
   return d;
