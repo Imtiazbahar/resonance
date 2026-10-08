@@ -92,6 +92,7 @@ uniform mat3  uRot;       // shape rotation (world -> object)
 uniform float uArm[8];    // arm lengths: 0-3 = tetrapod arms, 4-7 = the extra octopod arms
 uniform float uBlob[8];   // how far each arm's blob has travelled out (it pinches off, then rejoins)
 uniform float uFlow;      // flame phase: runs faster with sound
+uniform float uSlosh;     // slosh phase: advances at an uneven, organic pace
 uniform float uGather;    // 1 = beams gathered into a sphere of energy at the centre, 0 = spread through the body
 
 // ---------------------------------------------------------------- shape ----
@@ -226,7 +227,11 @@ float gCore;   // white-hot amount from the last liquid() call (used for the lic
 // it stays level while the shape spins. rim = how much this point faces away (0 front, 1 edge).
 vec3 liquid(vec3 p, float rim){
   float f = uFlow;
-  float level = 0.36*sin(f*0.95) + 0.04*sin(f*2.3);                      // slow slosh, bottom <-> top (stays on the body)
+  // the level: rises easing up and lingering near the top, then drops faster; each slosh reaches a
+  // slightly different height, with a small settling wobble (the pace itself varies — see uSlosh)
+  float ph    = uSlosh;
+  float amp   = 0.30 + 0.07*sin(ph*0.37 + 2.0);
+  float level = amp*sin(ph + 0.45*sin(ph)) + 0.03*sin(ph*3.1 + 0.5);
   float surf  = level + 0.30*sin(f*0.71 + 1.0)*p.x                        // clear tilt, like the video
               + (0.08 + 0.05*uDrive)*sin(p.x*2.6 + f*1.6)                 // waves along the line
               + 0.04*sin(p.z*4.1 - f*1.9 + 0.7);
@@ -326,7 +331,7 @@ void main(){
     speaking:  { name:'Speaking',  hint:'Agent is responding',                      spin:1.10, churn:0.30, drive:0.85 }
   };
   let state = 'idle';
-  const P = { spin:0.22, churn:0.15, drive:0, level:0, yaw:0, gather:1, flow:0 };
+  const P = { spin:0.22, churn:0.15, drive:0, level:0, yaw:0, gather:1, flow:0, slosh:0 };
   const arms = new Float32Array(8);          // smoothed per-arm sound level 0..1
   const armLen = new Float32Array(8);
   const blobD = new Float32Array(8);
@@ -348,7 +353,7 @@ void main(){
   const U = n => gl.getUniformLocation(prog, n);
   const UL = { center:U('uCenter'), radius:U('uRadius'), time:U('uTime'), drive:U('uDrive'), churn:U('uChurn'),
                squish:U('uSquish'), rot:U('uRot'), arm:U('uArm[0]'), blob:U('uBlob[0]'), gather:U('uGather'),
-               flow:U('uFlow') };
+               flow:U('uFlow'), slosh:U('uSlosh') };
 
   // ---- sizing ----
   let cxDev=0, cyDev=0, radDev=0;
@@ -477,6 +482,10 @@ void main(){
     gl.uniform1f(UL.gather, P.gather);
     P.flow += dt*(1.0 + 2.0*drive + 0.8*P.churn);       // flames flow faster with sound and while thinking
     gl.uniform1f(UL.flow, P.flow);
+    // the slosh speeds up and slows down by itself (two slow, unrelated rhythms), and surges with sound
+    const pace = Math.max(0.18, 0.62 + 0.38*(0.6*Math.sin(t*0.29 + 1.3) + 0.4*Math.sin(t*0.71 + 0.4)));
+    P.slosh += dt*0.95*pace*(1.0 + 1.3*drive + 0.5*P.churn);
+    gl.uniform1f(UL.slosh, P.slosh);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     requestAnimationFrame(frame);
   }
